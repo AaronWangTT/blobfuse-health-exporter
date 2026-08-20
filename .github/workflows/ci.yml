@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-validation:
+    name: Go validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 1.25.7
+          cache: true
+
+      - name: Verify module files
+        shell: bash
+        run: |
+          set -euo pipefail
+          go mod download
+          go mod verify
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          unformatted=$(gofmt -l .)
+          if [[ -n "$unformatted" ]]; then
+            printf 'Unformatted Go files:\n%s\n' "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Check shell syntax
+        run: bash -n test/integration/*.sh test/performance/*.sh test/tools/*.sh
+
+      - name: Check GitHub Actions workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/*.yml
+
+      - name: Run vet
+        run: go vet ./...
+
+      - name: Run unit tests
+        run: go test -count=1 ./...
+
+      - name: Run race detector
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race -count=1 ./...
+
+      - name: Build Linux executable
+        run: go build -trimpath -o "${RUNNER_TEMP}/blobfuse-health-exporter" .
+
+  external-integration:
+    name: Collector and Prometheus integration
+    needs: go-validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 1.25.7
+          cache: true
+
+      - name: Install checksum-pinned tools
+        run: bash test/tools/install-observability-tools.sh "${RUNNER_TEMP}/bin" all
+
+      - name: Validate integration configuration
+        run: |
+          "${RUNNER_TEMP}/bin/otelcol" validate --config=file:test/integration/otelcol.yaml
+          "${RUNNER_TEMP}/bin/promtool" check config test/integration/prometheus-otlp.yaml
+
+      - name: Run Collector smoke test
+        env:
+          GO_BIN: go
+          OTELCOL_BIN: ${{ runner.temp }}/bin/otelcol
+        run: bash test/integration/collector-smoke.sh
+
+      - name: Run Prometheus smoke test
+        env:
+          GO_BIN: go
+          PROMETHEUS_BIN: ${{ runner.temp }}/bin/prometheus
+        run: bash test/integration/prometheus-smoke.sh

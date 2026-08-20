@@ -1,5 +1,7 @@
 # BlobFuse Health Exporter
 
+[![CI](https://github.com/AaronWangTT/blobfuse-health-exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/AaronWangTT/blobfuse-health-exporter/actions/workflows/ci.yml)
+
 An independent OpenTelemetry metrics adapter for BlobFuse health reports.
 
 > **Project status:** The version 0 implementation is complete and locally

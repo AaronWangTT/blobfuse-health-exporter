@@ -39,6 +39,9 @@ All implementation remains local and uncommitted pending review.
   virtual-memory suffixes.
 - Repository-owned LF normalization through `.gitattributes` and
   `.editorconfig`, producing consistent Windows and WSL Git status.
+- GitHub Actions validation for module tidiness, formatting, shell and workflow
+  linting, vet, unit and race tests, Linux builds, checksum-pinned Collector and
+  Prometheus smoke tests, and isolated resource-budget runs.
 
 ## Implementation Model
 
@@ -133,6 +136,7 @@ otelcol validate --config=file:test/integration/otelcol.yaml
 promtool check config test/integration/prometheus-otlp.yaml
 bash test/integration/collector-smoke.sh
 bash test/integration/prometheus-smoke.sh
+go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/*.yml
 ```
 
 Focused tests cover source framing and lifecycle, numeric precision, privacy,
@@ -184,6 +188,11 @@ Load, 300 samples, 1 MiB/s fixture, rotation every 10 records:
 The load acceptance enforces average CPU because the contract specifies median
 only for idle CPU. Short aggressive calibration runs correctly failed the
 contract thresholds, proving the harness does not report unconditional success.
+
+The `CI` workflow runs deterministic validation and both external smoke tests
+for pull requests and pushes to `main`. The `Performance budgets` workflow runs
+the five-minute idle and load scenarios weekly and on manual dispatch so they
+do not extend the pull-request critical path.
 
 ## Known Limits
 

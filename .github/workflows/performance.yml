@@ -1,0 +1,48 @@
+name: Performance budgets
+
+on:
+  schedule:
+    - cron: "17 6 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resource-budget:
+    name: ${{ matrix.scenario }} budget
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [idle, load]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 1.25.7
+          cache: true
+
+      - name: Install checksum-pinned Collector
+        run: bash test/tools/install-observability-tools.sh "${RUNNER_TEMP}/bin" collector
+
+      - name: Validate Collector configuration
+        run: |
+          "${RUNNER_TEMP}/bin/otelcol" validate --config=file:test/performance/otelcol.yaml
+
+      - name: Run five-minute resource budget
+        env:
+          GO_BIN: go
+          OTELCOL_BIN: ${{ runner.temp }}/bin/otelcol
+        run: bash "test/performance/${{ matrix.scenario }}-budget.sh"

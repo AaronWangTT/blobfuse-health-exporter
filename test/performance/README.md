@@ -12,6 +12,10 @@ bash test/performance/idle-budget.sh
 bash test/performance/load-budget.sh
 ```
 
+GitHub Actions runs both scenarios in parallel from the weekly and manually
+dispatched `Performance budgets` workflow. They are intentionally excluded from
+pull-request CI.
+
 The idle scenario requires median CPU below 1% of one core and peak RSS below
 64 MiB. The load scenario writes at least 1 MiB/s, rotates every ten records,
 and requires average CPU below 10% of one core and peak RSS below 128 MiB.

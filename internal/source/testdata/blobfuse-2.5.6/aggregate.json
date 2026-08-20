@@ -1,0 +1,60 @@
+[
+  {
+    "Timestamp": "2026-08-20T12:00:00Z",
+    "BlobfuseStats": [
+      {
+        "timestamp": "2026-08-20T12:00:00Z",
+        "componentName": "azstorage",
+        "value": {
+          "Bytes Downloaded": 9007199254740992,
+          "Bytes Uploaded": 42,
+          "OpenFileHandles": 2,
+          "Arbitrary Counter": 99
+        }
+      },
+      {
+        "timestamp": "2026-08-20T12:00:00Z",
+        "componentName": "libfuse",
+        "value": {
+          "CreateFile": 8,
+          "DeleteFile": 2,
+          "OpenFileHandles": 3,
+          "UnknownOperation": 100
+        }
+      },
+      {
+        "timestamp": "2026-08-20T12:00:00Z",
+        "componentName": "file_cache",
+        "value": {
+          "Cache Usage": "12.500000 MB",
+          "Usage Percent": "125.00%",
+          "Files Downloaded": 4,
+          "Files served from cache": 3
+        }
+      },
+      {
+        "timestamp": "2026-08-20T12:00:00Z",
+        "componentName": "azstorage",
+        "operation": "CreateFile",
+        "path": "private/container/blob.txt",
+        "value": {
+          "Src": "secret-source-key",
+          "Bytes Transferred": 1024
+        }
+      }
+    ],
+    "FileCache": [
+      {
+        "cacheEvent": "CREATE",
+        "path": "private/cache/blob.txt",
+        "cacheSize": 1024
+      }
+    ],
+    "CPUUsage": "12.5%",
+    "MemoryUsage": "1234m",
+    "NetworkUsage": "",
+    "UnknownTopLevel": {
+      "path": "private/unknown/blob.txt"
+    }
+  }
+]

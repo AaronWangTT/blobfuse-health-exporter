@@ -84,6 +84,13 @@ obtain any required input fails live-source startup.
 Adapter self-metrics use a separate resource with `service.name` set to
 `blobfuse-health-exporter`.
 
+Version 0 preserves one periodic collection trigger by pairing the BlobFuse
+MeterProvider's periodic reader with a manually collected adapter
+MeterProvider. Each collection exports the target resource followed by the
+adapter resource through the same serialized transport. A collection can
+therefore make up to two OTLP requests, but never has more than one request in
+flight.
+
 The instrumentation scope is:
 
 ```text
@@ -389,6 +396,13 @@ The version 0 `reason` values are `generation_missing`,
 `generation_truncated`, `oversize_record`, `stale_generation`, and
 `unclean_close`. The version 0 `error.type` values are `timeout`, `transport`,
 and `shutdown`. New values require a metric-contract review.
+
+The version 0 `source.metric` values are
+`azure.blobfuse.storage.io`, `azure.blobfuse.fs.operations`,
+`azure.blobfuse.cache.file.downloads`, and `azure.blobfuse.cache.hits`.
+`generation_missing` is emitted only when a source adapter can prove that a
+generation was skipped. The current JSON format has no sequence number, so a
+pathname absence by itself must not synthesize this reason.
 
 ## Missing and Invalid Values
 

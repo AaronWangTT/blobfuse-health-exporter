@@ -1,0 +1,50 @@
+[
+  {
+    "Timestamp": 123,
+    "BlobfuseStats": [
+      {
+        "timestamp": false,
+        "componentName": "azstorage",
+        "value": {
+          "Bytes Downloaded": 9007199254740993,
+          "Bytes Uploaded": 1.5,
+          "OpenFileHandles": -1
+        }
+      },
+      {
+        "timestamp": "not-a-timestamp",
+        "componentName": "libfuse",
+        "value": {
+          "CreateFile": "8",
+          "DeleteFile": 2,
+          "Chmod": 1e1000,
+          "OpenFileHandles": null
+        }
+      },
+      {
+        "componentName": "file_cache",
+        "value": {
+          "Files Downloaded": 1e3,
+          "Files served from cache": 9007199254740992,
+          "Cache Usage": "NaN MB",
+          "Usage Percent": "-1%"
+        }
+      },
+      {
+        "componentName": 42,
+        "value": {}
+      },
+      null,
+      {
+        "componentName": "unknown_component",
+        "value": {
+          "path": "another/private/path"
+        }
+      }
+    ],
+    "FileCache": {},
+    "CPUUsage": 12.5,
+    "MemoryUsage": "NaNm",
+    "NetworkUsage": null
+  }
+]

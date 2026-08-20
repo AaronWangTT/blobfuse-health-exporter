@@ -2,8 +2,8 @@
 
 An independent OpenTelemetry metrics adapter for BlobFuse health reports.
 
-> **Project status:** The version 0 design is complete. Implementation has not
-> started, and there is no usable binary yet.
+> **Project status:** The version 0 implementation is complete and locally
+> validated against the tested configuration below. No release is published yet.
 
 BlobFuse2 includes a companion process, `bfusemon`, that writes health data to
 rotating JSON reports. BlobFuse Health Exporter is designed to consume those
@@ -29,6 +29,22 @@ The first milestone is a standalone Go executable for Linux that:
 Initial compatibility targets recorded fixtures from BlobFuse2 `2.5.6` and
 `bfusemon` `1.0.0-preview.1`. Compatibility with other versions must be proven
 with fixtures and tests.
+
+## Tested Configuration
+
+The current version 0 validation was performed with:
+
+- Ubuntu 26.04 LTS under WSL2, Linux
+  `6.18.33.2-microsoft-standard-WSL2`, x86-64;
+- Go `1.25.7`, including race-detector tests with GCC `15.2.0`;
+- sanitized source fixtures from BlobFuse2 `2.5.6` and `bfusemon`
+  `1.0.0-preview.1`;
+- OpenTelemetry Collector `0.159.0`; and
+- Prometheus/promtool `3.14.0`.
+
+BlobFuse2 and `bfusemon` were not installed or mounted during this validation.
+Source compatibility claims are therefore limited to the recorded fixtures and
+do not imply compatibility with other BlobFuse or Linux versions.
 
 ## Architecture
 
@@ -96,11 +112,11 @@ and are then discarded. Raw records and sensitive paths must not be logged.
 
 - [x] Define the source, metric, configuration, and privacy contracts.
 - [x] Complete peer and implementation-readiness design reviews.
-- [ ] Implement source identity and the incremental rotation-aware decoder.
-- [ ] Add sanitized fixtures and source state-machine tests.
-- [ ] Implement metric translation and cumulative OTLP export.
-- [ ] Add Collector and Prometheus integration tests.
-- [ ] Validate resource budgets on supported Linux environments.
+- [x] Implement source identity and the incremental rotation-aware decoder.
+- [x] Add sanitized fixtures and source state-machine tests.
+- [x] Implement metric translation and cumulative OTLP export.
+- [x] Add Collector and Prometheus integration tests.
+- [x] Validate resource budgets on a supported Linux environment.
 
 Post-v0 candidates include a declarative metric registry, typed procfs metrics,
 direct secure OTLP configuration, and typed permanent-failure handling. They are

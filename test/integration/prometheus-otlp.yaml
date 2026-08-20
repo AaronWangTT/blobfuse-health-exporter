@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 1m
+  evaluation_interval: 1m
+
+otlp:
+  promote_resource_attributes:
+    - service.name
+    - service.instance.id
+    - process.pid
+    - process.creation.time
+    - azure.blobfuse.monitor.source

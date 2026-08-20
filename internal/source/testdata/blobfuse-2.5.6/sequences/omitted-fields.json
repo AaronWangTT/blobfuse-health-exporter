@@ -1,0 +1,34 @@
+[
+  {
+    "Timestamp": "2026-08-20T12:00:00Z",
+    "BlobfuseStats": [
+      {
+        "timestamp": "2026-08-20T12:00:00Z",
+        "componentName": "azstorage",
+        "value": {
+          "Bytes Downloaded": 100
+        }
+      },
+      {
+        "timestamp": "2026-08-20T12:00:00Z",
+        "componentName": "libfuse",
+        "value": {
+          "OpenFileHandles": 3
+        }
+      }
+    ],
+    "MemoryUsage": "100m"
+  },
+  {
+    "Timestamp": "2026-08-20T12:00:00Z",
+    "BlobfuseStats": [
+      {
+        "timestamp": "2026-08-20T12:00:00Z",
+        "componentName": "azstorage",
+        "value": {
+          "Bytes Downloaded": 130
+        }
+      }
+    ]
+  }
+]

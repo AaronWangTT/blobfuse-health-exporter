@@ -1,0 +1,11 @@
+[
+  {
+    "Timestamp":"2026-08-20T12:00:00Z",
+    "BlobfuseStats":[{
+      "componentName":"azstorage",
+      "operation":"CreateFile",
+      "path":"private/quote\"/brace{}/snow-\u96ea/newline\nfile",
+      "value":{"Src":"private/source","Dest":"private/destination"}
+    }]
+  }
+]

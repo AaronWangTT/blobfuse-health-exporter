@@ -252,6 +252,12 @@ Only non-negative integer source values are accepted.
 Source mapping uses integer aggregate snapshot keys from `libfuse` that appear
 in the explicit operation allowlist.
 
+The live-tested BlobFuse2 `2.5.6` source aggregates `CreateDir` but emits
+`CreateFile` only as an immediate path-bearing event. Consequently,
+`create_file` produces no counter for that source version unless a compatible
+producer begins including it in aggregate snapshots; the adapter never derives
+it from immediate events.
+
 `azstorage` operation keys are deliberately excluded. They count calls into the
 BlobFuse storage component and do not correspond one-to-one with Azure REST or
 SDK requests. Presenting them as storage request telemetry would be misleading.

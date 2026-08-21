@@ -8,10 +8,12 @@ This document defines the input that the first exporter prototype is expected to
 consume. It describes observed implementation behavior, not a compatibility
 promise made by the BlobFuse project.
 
-The reference source inspected on 2026-08-20 reports:
+The reference source inspected on 2026-08-20 and exercised through a live
+Azurite-backed mount on 2026-08-21 reports:
 
 - BlobFuse2 version `2.5.6`
 - `bfusemon` version `1.0.0-preview.1`
+- Azure Storage Fuse commit `fb058fda6460443bbe64d19e9e836f2913d282bb`
 
 Compatibility with any release must be demonstrated by fixtures and tests. A
 matching filename is not sufficient evidence of a compatible schema.
@@ -285,6 +287,12 @@ Known operation names include `CreateDir`, `DeleteDir`, `StreamDir`,
 `CreateLink`, `ReadLink`, `SyncFile`, `SyncDir`, and `Chmod`. Support must use an
 explicit allowlist rather than accepting arbitrary map keys as metric
 attributes.
+
+In the live-tested BlobFuse2 `2.5.6` implementation, `CreateFile` is emitted as
+an immediate path-bearing event but is not added to the `libfuse` aggregate
+snapshot. `CreateDir` is aggregated and is therefore the real-mount E2E oracle.
+The adapter retains `create_file` in its bounded allowlist for compatible source
+versions and fixtures, but must not synthesize that counter when it is absent.
 
 ### Immediate Event
 

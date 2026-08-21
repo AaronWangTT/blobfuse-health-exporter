@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-08-20
+Last updated: 2026-08-21
 
 All implementation remains local and uncommitted pending review.
 
@@ -31,6 +31,8 @@ All implementation remains local and uncommitted pending review.
 - Source microbenchmarks for one-MiB decoding, normalization, and partial-tail
   continuation.
 - External OpenTelemetry Collector and native Prometheus OTLP smoke fixtures.
+- Credential-free Azurite real-mount coverage through BlobFuse, `bfusemon`,
+  strict report validation, exporter translation, and Prometheus OTLP ingestion.
 - Adapter self-metrics under a separate resource, exported through one periodic
   trigger and a serialized target/self transport.
 - BlobFuse 2.5.6 compatibility-matrix coverage for shutdown artifacts and
@@ -136,6 +138,7 @@ otelcol validate --config=file:test/integration/otelcol.yaml
 promtool check config test/integration/prometheus-otlp.yaml
 bash test/integration/collector-smoke.sh
 bash test/integration/prometheus-smoke.sh
+BLOBFUSE2_REPO=/path/to/azure-storage-fuse bash test/integration/azurite-mount-e2e.sh
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/*.yml
 ```
 
@@ -165,11 +168,11 @@ exercise baseline-to-live cutover, source-process termination, approved resource
 attributes, separate adapter self-metrics, and rejection of injected sensitive
 markers.
 
-Five-minute resource-budget acceptance passed on Ubuntu 26.04 LTS under WSL2, Linux
-`6.18.33.2-microsoft-standard-WSL2`, an Intel Xeon Platinum 8370C with 32 logical
-CPUs, Go 1.25.7, and GCC 15.2.0. Source compatibility tests used sanitized
-fixtures from BlobFuse2 `2.5.6` and `bfusemon` `1.0.0-preview.1`; no live
-BlobFuse mount or health-monitor process was used:
+Five-minute resource-budget acceptance passed on Ubuntu 26.04 LTS under WSL2,
+Linux `6.18.33.2-microsoft-standard-WSL2`, an Intel Xeon Platinum 8370C with 32
+logical CPUs, Go 1.25.7, and GCC 15.2.0. These budget runs used sanitized
+fixtures from BlobFuse2 `2.5.6` and `bfusemon` `1.0.0-preview.1`, not a live
+mount:
 
 ```text
 Idle, 300 samples, 30s export, 5s rescan:
@@ -189,10 +192,19 @@ The load acceptance enforces average CPU because the contract specifies median
 only for idle CPU. Short aggressive calibration runs correctly failed the
 contract thresholds, proving the harness does not report unconditional success.
 
-The `CI` workflow runs deterministic validation and both external smoke tests
-for pull requests and pushes to `main`. The `Performance budgets` workflow runs
-the five-minute idle and load scenarios weekly and on manual dispatch so they
-do not extend the pull-request critical path.
+The real-mount E2E passed separately on the same WSL host using BlobFuse commit
+`fb058fda6460443bbe64d19e9e836f2913d282bb`, BlobFuse2 `2.5.6`, `bfusemon`
+`1.0.0-preview.1`, Microsoft Go `1.26.4`, and Azurite `3.29.0`. It verified a
+strict-mode report source, a live `CreateDir` counter increment, process virtual
+memory, bounded resource labels, path privacy, unmount, and exporter shutdown.
+
+The `CI` workflow runs deterministic validation, both external smoke tests, and
+the credential-free Azurite real-mount job for pull requests and pushes to
+`main`. The real-mount job publishes its Prometheus metric table to the workflow
+summary and retains sanitized detailed Collector OTLP output for 14 days. The
+`Performance budgets` workflow runs the five-minute idle and load scenarios
+weekly and on manual dispatch so they do not extend the pull-request critical
+path.
 
 ## Known Limits
 
@@ -207,6 +219,8 @@ do not extend the pull-request critical path.
   environment. Parser tests cover all documented `top` memory suffixes, but
   portability is not claimed for additional distributions or BlobFuse versions
   until sanitized reports from those environments are added.
+- The real-mount E2E uses Azurite and does not establish compatibility with the
+  Azure Storage service.
 
 ## Next Slice
 

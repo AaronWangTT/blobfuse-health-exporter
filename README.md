@@ -39,14 +39,46 @@ The current version 0 validation was performed with:
 - Ubuntu 26.04 LTS under WSL2, Linux
   `6.18.33.2-microsoft-standard-WSL2`, x86-64;
 - Go `1.25.7`, including race-detector tests with GCC `15.2.0`;
+- Microsoft Go `1.26.4` for the live BlobFuse build;
 - sanitized source fixtures from BlobFuse2 `2.5.6` and `bfusemon`
   `1.0.0-preview.1`;
+- a real BlobFuse2 `2.5.6` mount and `bfusemon` process backed by Azurite
+  `3.29.0`;
 - OpenTelemetry Collector `0.159.0`; and
 - Prometheus/promtool `3.14.0`.
 
-BlobFuse2 and `bfusemon` were not installed or mounted during this validation.
-Source compatibility claims are therefore limited to the recorded fixtures and
-do not imply compatibility with other BlobFuse or Linux versions.
+The live test exercises FUSE, BlobFuse's stats FIFOs, `bfusemon` report output,
+strict exporter source validation, Prometheus OTLP ingestion, privacy, and
+source-driven shutdown. It does not use an Azure Storage account, so service
+compatibility remains outside the Azurite-backed claim. Other BlobFuse and
+Linux versions still require independent compatibility evidence.
+
+## Real-Mount Integration
+
+The credential-free E2E requires Linux FUSE3 runtime and development files,
+`/dev/fuse` access, Go, Node.js, Azure CLI, Azurite `3.29.0`, OpenTelemetry
+Collector `0.159.0`, and Prometheus `3.14.0`. Run it as one non-root user so
+BlobFuse, `bfusemon`, and the exporter share a UID:
+
+```bash
+BLOBFUSE2_REPO=/absolute/path/to/azure-storage-fuse \
+BLOBFUSE_GO_BIN=/absolute/path/to/go1.26.4/bin/go \
+OTELCOL_BIN=/absolute/path/to/otelcol \
+PROMETHEUS_BIN=/absolute/path/to/prometheus \
+AZURITE_BIN=/absolute/path/to/azurite-blob \
+bash test/integration/azurite-mount-e2e.sh
+```
+
+`GO_BIN` and `AZ_BIN` can override the exporter Go and Azure CLI commands. The
+harness builds into a private temporary directory, mounts BlobFuse in the
+foreground under `umask 077`, and removes its mount, processes, and data on
+completion.
+
+In GitHub Actions, the real-mount job writes the Prometheus-ingested metric
+names, labels, and values to the workflow run's **Summary** page. Its
+`blobfuse-real-mount-metrics` artifact contains the Collector's detailed OTLP
+debug representation and the corresponding Prometheus query result. The
+artifact excludes raw `bfusemon` reports and BlobFuse configuration.
 
 ## Architecture
 
@@ -118,6 +150,7 @@ and are then discarded. Raw records and sensitive paths must not be logged.
 - [x] Add sanitized fixtures and source state-machine tests.
 - [x] Implement metric translation and cumulative OTLP export.
 - [x] Add Collector and Prometheus integration tests.
+- [x] Validate the real BlobFuse, `bfusemon`, Azurite, and OTLP pipeline.
 - [x] Validate resource budgets on a supported Linux environment.
 
 Post-v0 candidates include a declarative metric registry, typed procfs metrics,

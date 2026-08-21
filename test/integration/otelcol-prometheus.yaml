@@ -1,0 +1,20 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: ${env:OTELCOL_HTTP_ENDPOINT}
+
+exporters:
+  debug:
+    verbosity: detailed
+  otlp_http/prometheus:
+    metrics_endpoint: ${env:PROMETHEUS_OTLP_ENDPOINT}
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [debug, otlp_http/prometheus]

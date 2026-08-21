@@ -142,6 +142,69 @@ The reports can contain file and blob paths. The v0 design therefore requires:
 Path-bearing events are parsed only far enough to advance the source watermark
 and are then discarded. Raw records and sensitive paths must not be logged.
 
+### Interim Report-Permission Workaround
+
+Until BlobFuse creates health reports with owner-only permissions, treat the
+entire `health_monitor.output-path` as sensitive. For every mount lifetime,
+provision a new absolute directory owned by the account that will run BlobFuse,
+`bfusemon`, and this exporter. For example, replace the example user and group
+with the deployment's service account:
+
+```bash
+REPORT_DIR=/var/lib/blobfuse/health/my-mount
+sudo install -d -m 0700 -o blobfuse -g blobfuse "$REPORT_DIR"
+```
+
+Configure that exact path and do not reuse it for a later mount:
+
+```yaml
+health_monitor:
+  enable-monitoring: true
+  output-path: /var/lib/blobfuse/health/my-mount
+```
+
+A mode-`0700` directory prevents other local users from traversing to reports
+even when a report itself has broader permission bits. This is the minimum
+privacy workaround for an existing BlobFuse deployment. Confirm that the
+directory owner matches the service user and that no bind mount or alternate
+path bypasses the private parent.
+
+Strict exporter mode also validates every report file, so the private parent
+directory alone is not sufficient for ingestion. BlobFuse daemon mode currently
+resets the process umask; setting `umask 077` before a default background mount
+therefore does not constrain reports created by `bfusemon`. Launch BlobFuse in
+foreground mode from a backgrounded shell so it and `bfusemon` inherit the
+restrictive umask:
+
+```bash
+(
+    umask 077
+    export PATH="/path/containing/bfusemon:$PATH"
+    exec blobfuse2 mount "$MOUNT_DIR" \
+        --config-file="$CONFIG_FILE" \
+        --foreground=true
+) &
+blobfuse_pid=$!
+
+blobfuse-health-exporter \
+    --report-dir "$REPORT_DIR" \
+    --pid "$blobfuse_pid"
+```
+
+For a service manager, use the equivalent foreground process model, run both
+programs under the same service account, and set its process umask to `0077`.
+For example, a systemd service should use `Type=simple`, `User=...`,
+`UMask=0077`, and a BlobFuse `ExecStart` containing `--foreground=true`.
+
+If an existing daemonized mount cannot be restarted, keep its dedicated report
+directory at `0700` and the exporter under the same UID. As a temporary
+compatibility measure only, `--allow-insecure-source` relaxes directory and
+report owner and group/other mode checks while retaining process-identity,
+descriptor-relative no-follow, and regular-file validation. Remove the override
+after deploying an owner-only report source. Do not use a periodic `chmod`:
+rotation creates new reports and leaves a disclosure and ingestion race before
+each correction.
+
 ## Roadmap
 
 - [x] Define the source, metric, configuration, and privacy contracts.

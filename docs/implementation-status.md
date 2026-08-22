@@ -34,8 +34,9 @@ The version 0 implementation and its validation workflows are tracked on
 - External OpenTelemetry Collector and native Prometheus OTLP smoke fixtures.
 - Credential-free Azurite real-mount coverage through BlobFuse, `bfusemon`,
   strict report validation, exporter translation, and Prometheus OTLP ingestion.
-- BlobFuse's upstream quick stress workload in pull-request gating, with exact
-  post-baseline create-directory, delete-file, and delete-directory assertions.
+- BlobFuse's upstream quick stress workload in pull-request gating, with
+  post-baseline lower bounds for create-directory, delete-file, and
+  delete-directory counters.
 - Daily and manually dispatched full BlobFuse stress coverage with sanitized
   Prometheus and detailed OTLP evidence.
 - Adapter self-metrics under a separate resource, exported through one periodic

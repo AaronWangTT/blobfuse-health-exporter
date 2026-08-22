@@ -14,9 +14,9 @@ concurrency:
 
 jobs:
   full-stress:
-    name: Azurite full-stress integration
+    name: Azurite repeated quick-stress integration
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 30
 
     steps:
       - name: Configure Git defaults
@@ -72,24 +72,7 @@ jobs:
       - name: Install checksum-pinned observability tools
         run: bash test/tools/install-observability-tools.sh "${RUNNER_TEMP}/observability" all
 
-      - name: Check full-stress capacity
-        shell: bash
-        run: |
-          set -euo pipefail
-          available_disk_kib=$(df --output=avail -k "${RUNNER_TEMP}" | tail -n 1)
-          available_memory_kib=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
-          df -h "${RUNNER_TEMP}"
-          free -h
-          ((available_disk_kib >= 10 * 1024 * 1024)) || {
-            echo "Full stress requires at least 10 GiB of free temporary storage" >&2
-            exit 1
-          }
-          ((available_memory_kib >= 5 * 1024 * 1024)) || {
-            echo "Full stress requires at least 5 GiB of available memory" >&2
-            exit 1
-          }
-
-      - name: Run Azurite full-stress integration
+      - name: Run repeated Azurite quick-stress integration
         env:
           BLOBFUSE2_REPO: ${{ github.workspace }}/.e2e/azure-storage-fuse
           GO_BIN: go
@@ -98,13 +81,12 @@ jobs:
           PROMETHEUS_BIN: ${{ runner.temp }}/observability/prometheus
           AZURITE_BIN: ${{ runner.temp }}/azurite/bin/azurite-blob
           AZ_BIN: az
-          E2E_STRESS_MODE: full
-          E2E_STRESS_TIMEOUT: 120m
-          E2E_CACHE_SIZE_MB: "5120"
-          E2E_CACHE_TIMEOUT_SEC: "7200"
+          E2E_STRESS_MODE: quick
+          E2E_STRESS_TIMEOUT: 5m
+          E2E_STRESS_ITERATIONS: "50"
           E2E_EXPORT_INTERVAL: 5s
-          E2E_ARTIFACT_NAME: blobfuse-full-stress-metrics
-          E2E_EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-full-stress-evidence
+          E2E_ARTIFACT_NAME: blobfuse-daily-stress-metrics
+          E2E_EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-daily-stress-evidence
         run: bash test/integration/azurite-mount-e2e.sh
 
       - name: Upload metric evidence
@@ -112,8 +94,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: blobfuse-full-stress-metrics
-          path: ${{ runner.temp }}/blobfuse-full-stress-evidence
+          name: blobfuse-daily-stress-metrics
+          path: ${{ runner.temp }}/blobfuse-daily-stress-evidence
           if-no-files-found: warn
           retention-days: 14
 
@@ -122,14 +104,14 @@ jobs:
         shell: bash
         env:
           ARTIFACT_URL: ${{ steps.metric_evidence.outputs.artifact-url }}
-          EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-full-stress-evidence
+          EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-daily-stress-evidence
         run: |
           set -euo pipefail
           if [[ -f "${EVIDENCE_DIR}/summary.md" ]]; then
             cat "${EVIDENCE_DIR}/summary.md" >>"${GITHUB_STEP_SUMMARY}"
           else
             cat >>"${GITHUB_STEP_SUMMARY}" <<'MARKDOWN'
-          # Azurite full-stress OTLP metrics
+          # Azurite daily stress OTLP metrics
 
           Metric evidence was not generated. See the workflow job log for the failing setup step.
           MARKDOWN

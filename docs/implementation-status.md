@@ -37,8 +37,9 @@ The version 0 implementation and its validation workflows are tracked on
 - BlobFuse's upstream quick stress workload in pull-request gating, with
   post-baseline lower bounds for create-directory, delete-file, and
   delete-directory counters.
-- Daily and manually dispatched full BlobFuse stress coverage with sanitized
-  Prometheus and detailed OTLP evidence.
+- Daily and manually dispatched repeated quick-stress coverage with sanitized
+  Prometheus and detailed OTLP evidence. The summary distinguishes planned
+  workload volume from best-effort observed counter lower bounds.
 - Adapter self-metrics under a separate resource, exported through one periodic
   trigger and a serialized target/self transport.
 - BlobFuse 2.5.6 compatibility-matrix coverage for shutdown artifacts and
@@ -146,8 +147,8 @@ bash test/integration/collector-smoke.sh
 bash test/integration/prometheus-smoke.sh
 E2E_STRESS_MODE=quick BLOBFUSE2_REPO=/path/to/azure-storage-fuse \
   bash test/integration/azurite-mount-e2e.sh
-E2E_STRESS_MODE=full E2E_STRESS_TIMEOUT=120m E2E_CACHE_SIZE_MB=5120 \
-  E2E_CACHE_TIMEOUT_SEC=7200 BLOBFUSE2_REPO=/path/to/azure-storage-fuse \
+E2E_STRESS_MODE=quick E2E_STRESS_ITERATIONS=50 \
+  BLOBFUSE2_REPO=/path/to/azure-storage-fuse \
   bash test/integration/azurite-mount-e2e.sh
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/*.yml
 ```
@@ -213,10 +214,10 @@ the credential-free Azurite real-mount job for pull requests and pushes to
 `main`. The real-mount job publishes its Prometheus metric table to the workflow
 summary and retains sanitized detailed Collector OTLP output for 14 days. The
 real-mount job uses BlobFuse's upstream quick stress workload. The `Daily
-Blobfuse stress` workflow runs its full stress mode daily and on manual
-dispatch, outside the pull-request critical path. The `Performance budgets`
-workflow runs the five-minute idle and load scenarios weekly and on manual
-dispatch.
+Blobfuse stress` workflow runs 50 isolated quick-mode iterations daily and on
+manual dispatch, outside the pull-request critical path. The `Performance
+budgets` workflow runs the five-minute idle and load scenarios weekly and on
+manual dispatch.
 
 ## Known Limits
 

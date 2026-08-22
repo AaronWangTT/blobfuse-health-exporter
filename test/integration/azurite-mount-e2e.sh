@@ -16,6 +16,7 @@ work_dir=${E2E_WORK_DIR:-}
 evidence_dir=${E2E_EVIDENCE_DIR:-}
 stress_mode=${E2E_STRESS_MODE:-quick}
 stress_timeout=${E2E_STRESS_TIMEOUT:-}
+stress_iterations=${E2E_STRESS_ITERATIONS:-1}
 cache_size_mb=${E2E_CACHE_SIZE_MB:-64}
 cache_timeout_sec=${E2E_CACHE_TIMEOUT_SEC:-120}
 artifact_name=${E2E_ARTIFACT_NAME:-blobfuse-real-mount-metrics}
@@ -218,29 +219,38 @@ case "$stress_mode" in
         stress_quick=true
         stress_timeout=${stress_timeout:-5m}
         # Stress root + 3 phase roots + 8 leaf directories.
-        expected_create_dirs=12
-        expected_delete_dirs=12
+        create_dirs_per_iteration=12
+        delete_dirs_per_iteration=12
         # 20 small + 2 big + 2 huge files.
-        expected_delete_files=24
+        delete_files_per_iteration=24
         ;;
     full)
         stress_quick=false
         stress_timeout=${stress_timeout:-120m}
         # Stress root + 3 phase roots + 62 leaf directories.
-        expected_create_dirs=66
-        expected_delete_dirs=66
+        create_dirs_per_iteration=66
+        delete_dirs_per_iteration=66
         # 2,000 small + 20 big + 2 huge files.
-        expected_delete_files=2022
+        delete_files_per_iteration=2022
         ;;
     *)
         fail "E2E_STRESS_MODE must be quick or full"
         ;;
 esac
 
+[[ "$stress_iterations" =~ ^[1-9][0-9]*$ ]] ||
+    fail "E2E_STRESS_ITERATIONS must be a positive integer"
 [[ "$cache_size_mb" =~ ^[1-9][0-9]*$ ]] ||
     fail "E2E_CACHE_SIZE_MB must be a positive integer"
 [[ "$cache_timeout_sec" =~ ^[1-9][0-9]*$ ]] ||
     fail "E2E_CACHE_TIMEOUT_SEC must be a positive integer"
+
+expected_create_dirs=$create_dirs_per_iteration
+expected_delete_dirs=$delete_dirs_per_iteration
+expected_delete_files=$delete_files_per_iteration
+planned_create_dirs=$((create_dirs_per_iteration * stress_iterations))
+planned_delete_dirs=$((delete_dirs_per_iteration * stress_iterations))
+planned_delete_files=$((delete_files_per_iteration * stress_iterations))
 
 require_command() {
     local command_name=$1
@@ -319,27 +329,36 @@ wait_for_query() {
 }
 
 run_blobfuse_stress() {
+    local iteration
     local stress_status
 
-    printf 'Running Blobfuse %s stress workload...\n' "$stress_mode"
-    (
-        cd "$blobfuse_repo"
-        exec setsid env GOTOOLCHAIN=local "$blobfuse_go_bin" test \
-            -count=1 \
-            -timeout="$stress_timeout" \
-            -v test/stress_test/stress_test.go \
-            -args \
-            -mnt-path="$mount_dir" \
-            -quick="$stress_quick"
-    ) >"$log_dir/blobfuse-stress.log" 2>&1 &
-    stress_pid=$!
-    if wait "$stress_pid"; then
-        stress_status=0
-    else
-        stress_status=$?
-    fi
-    stress_pid=
-    return "$stress_status"
+    printf 'Running Blobfuse %s stress workload for %d iteration(s)...\n' \
+        "$stress_mode" "$stress_iterations"
+    : >"$log_dir/blobfuse-stress.log"
+    for ((iteration = 1; iteration <= stress_iterations; iteration++)); do
+        printf '=== Stress iteration %d/%d ===\n' \
+            "$iteration" "$stress_iterations" >>"$log_dir/blobfuse-stress.log"
+        (
+            cd "$blobfuse_repo"
+            exec setsid env GOTOOLCHAIN=local "$blobfuse_go_bin" test \
+                -count=1 \
+                -timeout="$stress_timeout" \
+                -v test/stress_test/stress_test.go \
+                -args \
+                -mnt-path="$mount_dir" \
+                -quick="$stress_quick"
+        ) >>"$log_dir/blobfuse-stress.log" 2>&1 &
+        stress_pid=$!
+        if wait "$stress_pid"; then
+            stress_status=0
+        else
+            stress_status=$?
+        fi
+        stress_pid=
+        if ((stress_status != 0)); then
+            return "$stress_status"
+        fi
+    done
 }
 
 [[ -n "$blobfuse_repo" ]] || fail "BLOBFUSE2_REPO is required"
@@ -634,10 +653,14 @@ chmod 0600 "$metrics_file" "$otlp_file"
     "$summary_file" \
     "$report_mode" \
     "$stress_mode" \
+    "$stress_iterations" \
     "$artifact_name" \
     "$expected_create_dirs" \
     "$expected_delete_files" \
-    "$expected_delete_dirs" <<'PYTHON'
+    "$expected_delete_dirs" \
+    "$planned_create_dirs" \
+    "$planned_delete_files" \
+    "$planned_delete_dirs" <<'PYTHON'
 import json
 import sys
 
@@ -646,10 +669,14 @@ import sys
     summary_path,
     report_mode,
     stress_mode,
+    stress_iterations,
     artifact_name,
     expected_create_dirs,
     expected_delete_files,
     expected_delete_dirs,
+    planned_create_dirs,
+    planned_delete_files,
+    planned_delete_dirs,
 ) = sys.argv[1:]
 with open(metrics_path, encoding="utf-8") as metrics_stream:
     payload = json.load(metrics_stream)
@@ -674,7 +701,16 @@ with open(summary_path, "w", encoding="utf-8") as summary:
     summary.write("| --- | --- | --- |\n")
     summary.write(f"| Strict report permissions | Pass | Report mode `{markdown(report_mode)}` |\n")
     summary.write("| Real `bfusemon` memory metric | Pass | Ingested by Prometheus |\n")
-    summary.write(f"| Blobfuse stress workload | Pass | Mode `{markdown(stress_mode)}` |\n")
+    summary.write(
+        f"| Blobfuse stress workload | Pass | Mode `{markdown(stress_mode)}`, "
+        f"iterations `{markdown(stress_iterations)}` |\n"
+    )
+    summary.write(
+        "| Planned upstream operations | Pass | "
+        f"CreateDir `{markdown(planned_create_dirs)}`, "
+        f"DeleteFile `{markdown(planned_delete_files)}`, "
+        f"DeleteDir `{markdown(planned_delete_dirs)}` |\n"
+    )
     summary.write(f"| Post-baseline `CreateDir` counter | Pass | At least `{markdown(expected_create_dirs)}` |\n")
     summary.write(f"| Post-baseline `DeleteFile` counter | Pass | At least `{markdown(expected_delete_files)}` |\n")
     summary.write(f"| Post-baseline `DeleteDir` counter | Pass | At least `{markdown(expected_delete_dirs)}` |\n")

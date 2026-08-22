@@ -76,9 +76,9 @@ completion. By default it runs BlobFuse's upstream quick stress test after the
 exporter reaches live cutover and verifies observed deltas of at least 12
 `CreateDir`, 24 `DeleteFile`, and 12 `DeleteDir` operations. Set
 `E2E_STRESS_MODE=full`, `E2E_STRESS_TIMEOUT=120m`, and an appropriately sized
-`E2E_CACHE_SIZE_MB` to run the upstream full workload instead. Scheduled full
-mode also increases `E2E_CACHE_TIMEOUT_SEC` so its read phase remains a mounted
-file-cache workload rather than a separate Azurite throughput benchmark.
+`E2E_CACHE_SIZE_MB` to run the upstream full workload manually. Set
+`E2E_STRESS_ITERATIONS` to repeat either mode in isolated upstream test
+processes.
 
 In GitHub Actions, the real-mount job writes the Prometheus-ingested metric
 names, labels, and values to the workflow run's **Summary** page. Its
@@ -87,11 +87,13 @@ debug representation and the corresponding Prometheus query result. The
 artifact excludes raw `bfusemon` reports and BlobFuse configuration.
 
 Pull requests run the quick stress mode as a required CI job. The **Daily
-Blobfuse stress** workflow runs full mode every day and on manual dispatch. It
-expects observed deltas of at least 66 `CreateDir`, 2,022 `DeleteFile`, and 66
-`DeleteDir` operations and publishes the `blobfuse-full-stress-metrics`
-artifact. The full workload creates 2,022 files totaling about 10 GiB across
-sequential small, big, and huge phases.
+Blobfuse stress** workflow runs 50 isolated quick-mode iterations every day and
+on manual dispatch. It plans 600 `CreateDir`, 1,200 `DeleteFile`, and 600
+`DeleteDir` operations, while requiring at least one complete iteration's
+`12/24/12` observed counters because the upstream report source is best-effort.
+It publishes the `blobfuse-daily-stress-metrics` artifact. This emphasizes
+repeatable operation volume without turning Azurite into a multi-hour
+data-throughput benchmark.
 
 ## Architecture
 

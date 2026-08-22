@@ -14,6 +14,13 @@ python_bin=${PYTHON_BIN:-python3}
 keep_work_dir=${E2E_KEEP_WORK_DIR:-false}
 work_dir=${E2E_WORK_DIR:-}
 evidence_dir=${E2E_EVIDENCE_DIR:-}
+stress_mode=${E2E_STRESS_MODE:-quick}
+stress_timeout=${E2E_STRESS_TIMEOUT:-}
+stress_iterations=${E2E_STRESS_ITERATIONS:-1}
+cache_size_mb=${E2E_CACHE_SIZE_MB:-64}
+cache_timeout_sec=${E2E_CACHE_TIMEOUT_SEC:-120}
+artifact_name=${E2E_ARTIFACT_NAME:-blobfuse-real-mount-metrics}
+export_interval=${E2E_EXPORT_INTERVAL:-500ms}
 
 azurite_pid=
 prometheus_pid=
@@ -21,6 +28,7 @@ collector_pid=
 blobfuse_pid=
 bfusemon_pid=
 exporter_pid=
+stress_pid=
 mounted=false
 
 umask 0077
@@ -95,7 +103,7 @@ print_diagnostics() {
             -printf '%f mode=%m uid=%U size=%s bytes\n' >&2 2>/dev/null || true
     fi
 
-    for log_name in exporter collector prometheus blobfuse azurite; do
+    for log_name in exporter collector prometheus blobfuse-stress blobfuse azurite; do
         printf '%s\n' "--- $log_name log ---" >&2
         tail -n 80 "$log_dir/$log_name.log" >&2 2>/dev/null || true
     done
@@ -123,6 +131,14 @@ terminate_process() {
     fi
 }
 
+terminate_process_group() {
+    local process_id=$1
+
+    if [[ -n "$process_id" ]] && kill -0 "$process_id" 2>/dev/null; then
+        kill -TERM -- "-$process_id" 2>/dev/null || true
+    fi
+}
+
 wait_for_process_exit() {
     local process_id=$1
     local timeout_seconds=$2
@@ -140,6 +156,15 @@ cleanup() {
     local status=$?
     set +e
 
+    terminate_process_group "$stress_pid"
+    if [[ -n "$stress_pid" ]]; then
+        if ! wait_for_process_exit "$stress_pid" 5; then
+            kill -KILL -- "-$stress_pid" 2>/dev/null || true
+        fi
+        wait "$stress_pid" 2>/dev/null || true
+        stress_pid=
+    fi
+
     if [[ "$mounted" == true ]] && mountpoint -q "$mount_dir"; then
         fusermount3 -u "$mount_dir" >/dev/null 2>&1 ||
             fusermount3 -uz "$mount_dir" >/dev/null 2>&1
@@ -151,6 +176,11 @@ cleanup() {
     terminate_process "$collector_pid"
     terminate_process "$prometheus_pid"
     terminate_process "$azurite_pid"
+
+    if [[ -n "$bfusemon_pid" ]] && ! wait_for_process_exit "$bfusemon_pid" 5; then
+        kill -KILL "$bfusemon_pid" 2>/dev/null || true
+        wait_for_process_exit "$bfusemon_pid" 5 || true
+    fi
 
     for process_id in \
         "$blobfuse_pid" \
@@ -183,6 +213,44 @@ fail() {
     printf 'Azurite mount E2E failed: %s\n' "$1" >&2
     exit 1
 }
+
+case "$stress_mode" in
+    quick)
+        stress_quick=true
+        stress_timeout=${stress_timeout:-5m}
+        # Stress root + 3 phase roots + 8 leaf directories.
+        create_dirs_per_iteration=12
+        delete_dirs_per_iteration=12
+        # 20 small + 2 big + 2 huge files.
+        delete_files_per_iteration=24
+        ;;
+    full)
+        stress_quick=false
+        stress_timeout=${stress_timeout:-120m}
+        # Stress root + 3 phase roots + 62 leaf directories.
+        create_dirs_per_iteration=66
+        delete_dirs_per_iteration=66
+        # 2,000 small + 20 big + 2 huge files.
+        delete_files_per_iteration=2022
+        ;;
+    *)
+        fail "E2E_STRESS_MODE must be quick or full"
+        ;;
+esac
+
+[[ "$stress_iterations" =~ ^[1-9][0-9]*$ ]] ||
+    fail "E2E_STRESS_ITERATIONS must be a positive integer"
+[[ "$cache_size_mb" =~ ^[1-9][0-9]*$ ]] ||
+    fail "E2E_CACHE_SIZE_MB must be a positive integer"
+[[ "$cache_timeout_sec" =~ ^[1-9][0-9]*$ ]] ||
+    fail "E2E_CACHE_TIMEOUT_SEC must be a positive integer"
+
+expected_create_dirs=$create_dirs_per_iteration
+expected_delete_dirs=$delete_dirs_per_iteration
+expected_delete_files=$delete_files_per_iteration
+planned_create_dirs=$((create_dirs_per_iteration * stress_iterations))
+planned_delete_dirs=$((delete_dirs_per_iteration * stress_iterations))
+planned_delete_files=$((delete_files_per_iteration * stress_iterations))
 
 require_command() {
     local command_name=$1
@@ -260,6 +328,39 @@ wait_for_query() {
     return 1
 }
 
+run_blobfuse_stress() {
+    local iteration
+    local stress_status
+
+    printf 'Running Blobfuse %s stress workload for %d iteration(s)...\n' \
+        "$stress_mode" "$stress_iterations"
+    : >"$log_dir/blobfuse-stress.log"
+    for ((iteration = 1; iteration <= stress_iterations; iteration++)); do
+        printf '=== Stress iteration %d/%d ===\n' \
+            "$iteration" "$stress_iterations" >>"$log_dir/blobfuse-stress.log"
+        (
+            cd "$blobfuse_repo"
+            exec setsid env GOTOOLCHAIN=local "$blobfuse_go_bin" test \
+                -count=1 \
+                -timeout="$stress_timeout" \
+                -v test/stress_test/stress_test.go \
+                -args \
+                -mnt-path="$mount_dir" \
+                -quick="$stress_quick"
+        ) >>"$log_dir/blobfuse-stress.log" 2>&1 &
+        stress_pid=$!
+        if wait "$stress_pid"; then
+            stress_status=0
+        else
+            stress_status=$?
+        fi
+        stress_pid=
+        if ((stress_status != 0)); then
+            return "$stress_status"
+        fi
+    done
+}
+
 [[ -n "$blobfuse_repo" ]] || fail "BLOBFUSE2_REPO is required"
 [[ "$blobfuse_repo" = /* ]] || fail "BLOBFUSE2_REPO must be an absolute path"
 [[ -f "$blobfuse_repo/go.mod" ]] || fail "BLOBFUSE2_REPO does not contain go.mod"
@@ -280,6 +381,7 @@ for command_name in \
     grep \
     mountpoint \
     pgrep \
+    setsid \
     stat; do
     require_command "$command_name"
 done
@@ -310,7 +412,6 @@ printf 'Starting Azurite Blob service on %s...\n' "$azurite_url"
     --silent \
     --skipApiVersionCheck \
     --location "$azurite_data_dir" \
-    --debug "$log_dir/azurite-debug.log" \
     --blobHost 127.0.0.1 \
     --blobPort "$azurite_port" \
     >"$log_dir/azurite.log" 2>&1 &
@@ -348,6 +449,8 @@ collector_pid=$!
 wait_for_http "$collector_url/v1/metrics" "$collector_pid" 20 ||
     fail "OpenTelemetry Collector did not become ready"
 
+printf -v cache_size_line '  max-size-mb: %s' "$cache_size_mb"
+printf -v cache_timeout_line '  timeout-sec: %s' "$cache_timeout_sec"
 cat >"$config_file" <<YAML
 logging:
   level: log_warning
@@ -368,8 +471,8 @@ libfuse:
 
 file_cache:
   path: "$cache_dir"
-  timeout-sec: 120
-  max-size-mb: 64
+$cache_timeout_line
+$cache_size_line
   allow-non-empty-temp: true
   cleanup-on-start: true
 
@@ -425,9 +528,16 @@ report_mode_value=$((8#$report_mode))
     fail "bfusemon report owner does not match the exporter uid"
 
 baseline_name="baseline-$RANDOM"
-mkdir "$mount_dir/$baseline_name"
-wait_for_file_pattern "$report_file" '"CreateDir":' "$blobfuse_pid" 45 ||
-    fail "bfusemon did not flush the CreateDir baseline"
+baseline_dir="$mount_dir/$baseline_name"
+baseline_file="$baseline_dir/file.txt"
+mkdir "$baseline_dir"
+printf 'baseline\n' >"$baseline_file"
+rm "$baseline_file"
+rmdir "$baseline_dir"
+for baseline_pattern in '"CreateDir":' '"DeleteFile":' '"DeleteDir":'; do
+    wait_for_file_pattern "$report_file" "$baseline_pattern" "$blobfuse_pid" 45 ||
+        fail "bfusemon did not flush the $baseline_pattern baseline"
+done
 
 printf '%s\n' 'Starting exporter after the real Blobfuse baseline...'
 "$bin_dir/blobfuse-health-exporter" \
@@ -437,7 +547,7 @@ printf '%s\n' 'Starting exporter after the real Blobfuse baseline...'
     --rescan-interval 200ms \
     --initialization-timeout 15s \
     --source-drain-timeout 8s \
-    --export-interval 500ms \
+    --export-interval "$export_interval" \
     --export-timeout 250ms \
     --shutdown-timeout 3s \
     >"$log_dir/exporter.log" 2>&1 &
@@ -447,13 +557,25 @@ memory_query="{__name__=~\"process_memory_virtual.*\",process_pid=\"$blobfuse_pi
 wait_for_query "$prometheus_url" "$memory_query" 30 ||
     fail "the real bfusemon memory metric was not ingested"
 
-private_marker="private-e2e-$RANDOM"
-mkdir "$mount_dir/$private_marker"
+run_blobfuse_stress || fail "Blobfuse $stress_mode stress workload failed"
 
-operation_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"create_dir\",process_pid=\"$blobfuse_pid\"} > 0"
-wait_for_query "$prometheus_url" "$operation_query" 45 ||
-    fail "the post-cutover CreateDir increment was not ingested"
+operation_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"create_dir\",process_pid=\"$blobfuse_pid\"} >= $expected_create_dirs"
+wait_for_query "$prometheus_url" "$operation_query" 60 ||
+    fail "the minimum post-cutover CreateDir total was not ingested"
 operation_response=$(<"$query_file")
+
+delete_file_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"delete_file\",process_pid=\"$blobfuse_pid\"} >= $expected_delete_files"
+wait_for_query "$prometheus_url" "$delete_file_query" 60 ||
+    fail "the minimum post-cutover DeleteFile total was not ingested"
+
+delete_dir_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"delete_dir\",process_pid=\"$blobfuse_pid\"} >= $expected_delete_dirs"
+wait_for_query "$prometheus_url" "$delete_dir_query" 60 ||
+    fail "the minimum post-cutover DeleteDir total was not ingested"
+
+private_marker="private-e2e-$RANDOM"
+printf 'privacy probe\n' >"$mount_dir/$private_marker.txt"
+wait_for_file_pattern "$report_file" "$private_marker" "$blobfuse_pid" 30 ||
+    fail "bfusemon did not flush the path privacy probe"
 
 for pattern in \
     '"service_name":"blobfuse2"' \
@@ -526,11 +648,36 @@ done
 cp -- "$log_dir/collector.log" "$otlp_file"
 chmod 0600 "$metrics_file" "$otlp_file"
 
-"$python_bin" - "$metrics_file" "$summary_file" "$report_mode" <<'PYTHON'
+"$python_bin" - \
+    "$metrics_file" \
+    "$summary_file" \
+    "$report_mode" \
+    "$stress_mode" \
+    "$stress_iterations" \
+    "$artifact_name" \
+    "$expected_create_dirs" \
+    "$expected_delete_files" \
+    "$expected_delete_dirs" \
+    "$planned_create_dirs" \
+    "$planned_delete_files" \
+    "$planned_delete_dirs" <<'PYTHON'
 import json
 import sys
 
-metrics_path, summary_path, report_mode = sys.argv[1:]
+(
+    metrics_path,
+    summary_path,
+    report_mode,
+    stress_mode,
+    stress_iterations,
+    artifact_name,
+    expected_create_dirs,
+    expected_delete_files,
+    expected_delete_dirs,
+    planned_create_dirs,
+    planned_delete_files,
+    planned_delete_dirs,
+) = sys.argv[1:]
 with open(metrics_path, encoding="utf-8") as metrics_stream:
     payload = json.load(metrics_stream)
 
@@ -554,7 +701,19 @@ with open(summary_path, "w", encoding="utf-8") as summary:
     summary.write("| --- | --- | --- |\n")
     summary.write(f"| Strict report permissions | Pass | Report mode `{markdown(report_mode)}` |\n")
     summary.write("| Real `bfusemon` memory metric | Pass | Ingested by Prometheus |\n")
-    summary.write("| Post-baseline `CreateDir` counter | Pass | Value greater than zero |\n")
+    summary.write(
+        f"| Blobfuse stress workload | Pass | Mode `{markdown(stress_mode)}`, "
+        f"iterations `{markdown(stress_iterations)}` |\n"
+    )
+    summary.write(
+        "| Planned upstream operations | Pass | "
+        f"CreateDir `{markdown(planned_create_dirs)}`, "
+        f"DeleteFile `{markdown(planned_delete_files)}`, "
+        f"DeleteDir `{markdown(planned_delete_dirs)}` |\n"
+    )
+    summary.write(f"| Post-baseline `CreateDir` counter | Pass | At least `{markdown(expected_create_dirs)}` |\n")
+    summary.write(f"| Post-baseline `DeleteFile` counter | Pass | At least `{markdown(expected_delete_files)}` |\n")
+    summary.write(f"| Post-baseline `DeleteDir` counter | Pass | At least `{markdown(expected_delete_dirs)}` |\n")
     summary.write("| Path and configuration privacy | Pass | Evidence scan found no protected values |\n")
     summary.write("| Source-driven shutdown | Pass | Blobfuse and exporter exited cleanly |\n\n")
     summary.write("## Prometheus-Ingested Metrics\n\n")
@@ -571,7 +730,7 @@ with open(summary_path, "w", encoding="utf-8") as summary:
         summary.write(f"| `{markdown(name)}` | {label_text} | `{markdown(value)}` |\n")
     summary.write("\n## Exact OTLP Structures\n\n")
     summary.write(
-        "The workflow artifact `blobfuse-real-mount-metrics` contains "
+        f"The workflow artifact `{markdown(artifact_name)}` contains "
         "`otel-metrics.log`, the Collector's detailed debug representation, and "
         "`prometheus-metrics.json`, the corresponding query result. Raw `bfusemon` "
         "reports and Blobfuse configuration are excluded.\n"

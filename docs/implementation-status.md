@@ -1,8 +1,9 @@
 # Implementation Status
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
-All implementation remains local and uncommitted pending review.
+The version 0 implementation and its validation workflows are tracked on
+`main`; this document records the currently verified behavior and environments.
 
 ## Completed Slices
 
@@ -33,6 +34,12 @@ All implementation remains local and uncommitted pending review.
 - External OpenTelemetry Collector and native Prometheus OTLP smoke fixtures.
 - Credential-free Azurite real-mount coverage through BlobFuse, `bfusemon`,
   strict report validation, exporter translation, and Prometheus OTLP ingestion.
+- BlobFuse's upstream quick stress workload in pull-request gating, with
+  post-baseline lower bounds for create-directory, delete-file, and
+  delete-directory counters.
+- Daily and manually dispatched repeated quick-stress coverage with sanitized
+  Prometheus and detailed OTLP evidence. The summary distinguishes planned
+  workload volume from best-effort observed counter lower bounds.
 - Adapter self-metrics under a separate resource, exported through one periodic
   trigger and a serialized target/self transport.
 - BlobFuse 2.5.6 compatibility-matrix coverage for shutdown artifacts and
@@ -138,7 +145,11 @@ otelcol validate --config=file:test/integration/otelcol.yaml
 promtool check config test/integration/prometheus-otlp.yaml
 bash test/integration/collector-smoke.sh
 bash test/integration/prometheus-smoke.sh
-BLOBFUSE2_REPO=/path/to/azure-storage-fuse bash test/integration/azurite-mount-e2e.sh
+E2E_STRESS_MODE=quick BLOBFUSE2_REPO=/path/to/azure-storage-fuse \
+  bash test/integration/azurite-mount-e2e.sh
+E2E_STRESS_MODE=quick E2E_STRESS_ITERATIONS=50 \
+  BLOBFUSE2_REPO=/path/to/azure-storage-fuse \
+  bash test/integration/azurite-mount-e2e.sh
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/*.yml
 ```
 
@@ -202,9 +213,11 @@ The `CI` workflow runs deterministic validation, both external smoke tests, and
 the credential-free Azurite real-mount job for pull requests and pushes to
 `main`. The real-mount job publishes its Prometheus metric table to the workflow
 summary and retains sanitized detailed Collector OTLP output for 14 days. The
-`Performance budgets` workflow runs the five-minute idle and load scenarios
-weekly and on manual dispatch so they do not extend the pull-request critical
-path.
+real-mount job uses BlobFuse's upstream quick stress workload. The `Daily
+Blobfuse stress` workflow runs 50 isolated quick-mode iterations daily and on
+manual dispatch, outside the pull-request critical path. The `Performance
+budgets` workflow runs the five-minute idle and load scenarios weekly and on
+manual dispatch.
 
 ## Known Limits
 

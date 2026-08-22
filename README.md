@@ -72,13 +72,28 @@ bash test/integration/azurite-mount-e2e.sh
 `GO_BIN` and `AZ_BIN` can override the exporter Go and Azure CLI commands. The
 harness builds into a private temporary directory, mounts BlobFuse in the
 foreground under `umask 077`, and removes its mount, processes, and data on
-completion.
+completion. By default it runs BlobFuse's upstream quick stress test after the
+exporter reaches live cutover and verifies observed deltas of at least 12
+`CreateDir`, 24 `DeleteFile`, and 12 `DeleteDir` operations. Set
+`E2E_STRESS_MODE=full`, `E2E_STRESS_TIMEOUT=120m`, and an appropriately sized
+`E2E_CACHE_SIZE_MB` to run the upstream full workload manually. Set
+`E2E_STRESS_ITERATIONS` to repeat either mode in isolated upstream test
+processes.
 
 In GitHub Actions, the real-mount job writes the Prometheus-ingested metric
 names, labels, and values to the workflow run's **Summary** page. Its
 `blobfuse-real-mount-metrics` artifact contains the Collector's detailed OTLP
 debug representation and the corresponding Prometheus query result. The
 artifact excludes raw `bfusemon` reports and BlobFuse configuration.
+
+Pull requests run the quick stress mode as a required CI job. The **Daily
+Blobfuse stress** workflow runs 50 isolated quick-mode iterations every day and
+on manual dispatch. It plans 600 `CreateDir`, 1,200 `DeleteFile`, and 600
+`DeleteDir` operations, while requiring at least one complete iteration's
+`12/24/12` observed counters because the upstream report source is best-effort.
+It publishes the `blobfuse-daily-stress-metrics` artifact. This emphasizes
+repeatable operation volume without turning Azurite into a multi-hour
+data-throughput benchmark.
 
 ## Architecture
 

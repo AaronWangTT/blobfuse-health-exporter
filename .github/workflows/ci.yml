@@ -187,6 +187,8 @@ jobs:
           PROMETHEUS_BIN: ${{ runner.temp }}/observability/prometheus
           AZURITE_BIN: ${{ runner.temp }}/azurite/bin/azurite-blob
           AZ_BIN: az
+          E2E_STRESS_MODE: quick
+          E2E_STRESS_TIMEOUT: 5m
           E2E_EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-e2e-evidence
         run: bash test/integration/azurite-mount-e2e.sh
 

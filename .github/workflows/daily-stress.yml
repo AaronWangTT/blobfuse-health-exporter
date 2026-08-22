@@ -1,0 +1,140 @@
+name: Daily Blobfuse stress
+
+on:
+  schedule:
+    - cron: "29 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-blobfuse-stress-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  full-stress:
+    name: Azurite full-stress integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+
+    steps:
+      - name: Configure Git defaults
+        run: git config --global init.defaultBranch main
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out Azure Storage Fuse
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Azure/azure-storage-fuse
+          ref: fb058fda6460443bbe64d19e9e836f2913d282bb
+          path: .e2e/azure-storage-fuse
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 1.26.4
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            .e2e/azure-storage-fuse/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.22.1
+
+      - name: Install FUSE dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes fuse3 libfuse3-dev pkg-config
+          test -c /dev/fuse
+          test -r /dev/fuse
+          test -w /dev/fuse
+          pkg-config --modversion fuse3
+          fusermount3 -V
+
+      - name: Install pinned Azurite
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v az
+          npm install --global --prefix "${RUNNER_TEMP}/azurite" azurite@3.29.0
+          "${RUNNER_TEMP}/azurite/bin/azurite-blob" --version
+
+      - name: Install checksum-pinned observability tools
+        run: bash test/tools/install-observability-tools.sh "${RUNNER_TEMP}/observability" all
+
+      - name: Check full-stress capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          available_disk_kib=$(df --output=avail -k "${RUNNER_TEMP}" | tail -n 1)
+          available_memory_kib=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+          df -h "${RUNNER_TEMP}"
+          free -h
+          ((available_disk_kib >= 10 * 1024 * 1024)) || {
+            echo "Full stress requires at least 10 GiB of free temporary storage" >&2
+            exit 1
+          }
+          ((available_memory_kib >= 5 * 1024 * 1024)) || {
+            echo "Full stress requires at least 5 GiB of available memory" >&2
+            exit 1
+          }
+
+      - name: Run Azurite full-stress integration
+        env:
+          BLOBFUSE2_REPO: ${{ github.workspace }}/.e2e/azure-storage-fuse
+          GO_BIN: go
+          BLOBFUSE_GO_BIN: go
+          OTELCOL_BIN: ${{ runner.temp }}/observability/otelcol
+          PROMETHEUS_BIN: ${{ runner.temp }}/observability/prometheus
+          AZURITE_BIN: ${{ runner.temp }}/azurite/bin/azurite-blob
+          AZ_BIN: az
+          E2E_STRESS_MODE: full
+          E2E_STRESS_TIMEOUT: 120m
+          E2E_CACHE_SIZE_MB: "5120"
+          E2E_CACHE_TIMEOUT_SEC: "7200"
+          E2E_EXPORT_INTERVAL: 5s
+          E2E_ARTIFACT_NAME: blobfuse-full-stress-metrics
+          E2E_EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-full-stress-evidence
+        run: bash test/integration/azurite-mount-e2e.sh
+
+      - name: Upload metric evidence
+        id: metric_evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: blobfuse-full-stress-metrics
+          path: ${{ runner.temp }}/blobfuse-full-stress-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish metric summary
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_URL: ${{ steps.metric_evidence.outputs.artifact-url }}
+          EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-full-stress-evidence
+        run: |
+          set -euo pipefail
+          if [[ -f "${EVIDENCE_DIR}/summary.md" ]]; then
+            cat "${EVIDENCE_DIR}/summary.md" >>"${GITHUB_STEP_SUMMARY}"
+          else
+            cat >>"${GITHUB_STEP_SUMMARY}" <<'MARKDOWN'
+          # Azurite full-stress OTLP metrics
+
+          Metric evidence was not generated. See the workflow job log for the failing setup step.
+          MARKDOWN
+          fi
+          if [[ -n "${ARTIFACT_URL}" ]]; then
+            printf '\n[Download sanitized metric evidence](%s)\n' \
+              "${ARTIFACT_URL}" >>"${GITHUB_STEP_SUMMARY}"
+          fi

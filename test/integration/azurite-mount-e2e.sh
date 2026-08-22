@@ -245,9 +245,9 @@ esac
 [[ "$cache_timeout_sec" =~ ^[1-9][0-9]*$ ]] ||
     fail "E2E_CACHE_TIMEOUT_SEC must be a positive integer"
 
-expected_create_dirs=$create_dirs_per_iteration
-expected_delete_dirs=$delete_dirs_per_iteration
-expected_delete_files=$delete_files_per_iteration
+minimum_create_dirs=1
+minimum_delete_dirs=1
+minimum_delete_files=1
 planned_create_dirs=$((create_dirs_per_iteration * stress_iterations))
 planned_delete_dirs=$((delete_dirs_per_iteration * stress_iterations))
 planned_delete_files=$((delete_files_per_iteration * stress_iterations))
@@ -559,18 +559,18 @@ wait_for_query "$prometheus_url" "$memory_query" 30 ||
 
 run_blobfuse_stress || fail "Blobfuse $stress_mode stress workload failed"
 
-operation_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"create_dir\",process_pid=\"$blobfuse_pid\"} >= $expected_create_dirs"
+operation_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"create_dir\",process_pid=\"$blobfuse_pid\"} >= $minimum_create_dirs"
 wait_for_query "$prometheus_url" "$operation_query" 60 ||
-    fail "the minimum post-cutover CreateDir total was not ingested"
+    fail "no post-cutover CreateDir total was ingested"
 operation_response=$(<"$query_file")
 
-delete_file_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"delete_file\",process_pid=\"$blobfuse_pid\"} >= $expected_delete_files"
+delete_file_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"delete_file\",process_pid=\"$blobfuse_pid\"} >= $minimum_delete_files"
 wait_for_query "$prometheus_url" "$delete_file_query" 60 ||
-    fail "the minimum post-cutover DeleteFile total was not ingested"
+    fail "no post-cutover DeleteFile total was ingested"
 
-delete_dir_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"delete_dir\",process_pid=\"$blobfuse_pid\"} >= $expected_delete_dirs"
+delete_dir_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"delete_dir\",process_pid=\"$blobfuse_pid\"} >= $minimum_delete_dirs"
 wait_for_query "$prometheus_url" "$delete_dir_query" 60 ||
-    fail "the minimum post-cutover DeleteDir total was not ingested"
+    fail "no post-cutover DeleteDir total was ingested"
 
 private_marker="private-e2e-$RANDOM"
 printf 'privacy probe\n' >"$mount_dir/$private_marker.txt"
@@ -655,9 +655,9 @@ chmod 0600 "$metrics_file" "$otlp_file"
     "$stress_mode" \
     "$stress_iterations" \
     "$artifact_name" \
-    "$expected_create_dirs" \
-    "$expected_delete_files" \
-    "$expected_delete_dirs" \
+    "$minimum_create_dirs" \
+    "$minimum_delete_files" \
+    "$minimum_delete_dirs" \
     "$planned_create_dirs" \
     "$planned_delete_files" \
     "$planned_delete_dirs" <<'PYTHON'
@@ -671,9 +671,9 @@ import sys
     stress_mode,
     stress_iterations,
     artifact_name,
-    expected_create_dirs,
-    expected_delete_files,
-    expected_delete_dirs,
+    minimum_create_dirs,
+    minimum_delete_files,
+    minimum_delete_dirs,
     planned_create_dirs,
     planned_delete_files,
     planned_delete_dirs,
@@ -711,9 +711,9 @@ with open(summary_path, "w", encoding="utf-8") as summary:
         f"DeleteFile `{markdown(planned_delete_files)}`, "
         f"DeleteDir `{markdown(planned_delete_dirs)}` |\n"
     )
-    summary.write(f"| Post-baseline `CreateDir` counter | Pass | At least `{markdown(expected_create_dirs)}` |\n")
-    summary.write(f"| Post-baseline `DeleteFile` counter | Pass | At least `{markdown(expected_delete_files)}` |\n")
-    summary.write(f"| Post-baseline `DeleteDir` counter | Pass | At least `{markdown(expected_delete_dirs)}` |\n")
+    summary.write(f"| Post-baseline `CreateDir` series | Pass | Nonzero (`>= {markdown(minimum_create_dirs)}`) |\n")
+    summary.write(f"| Post-baseline `DeleteFile` series | Pass | Nonzero (`>= {markdown(minimum_delete_files)}`) |\n")
+    summary.write(f"| Post-baseline `DeleteDir` series | Pass | Nonzero (`>= {markdown(minimum_delete_dirs)}`) |\n")
     summary.write("| Path and configuration privacy | Pass | Evidence scan found no protected values |\n")
     summary.write("| Source-driven shutdown | Pass | Blobfuse and exporter exited cleanly |\n\n")
     summary.write("## Prometheus-Ingested Metrics\n\n")

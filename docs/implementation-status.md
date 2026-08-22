@@ -35,8 +35,8 @@ The version 0 implementation and its validation workflows are tracked on
 - Credential-free Azurite real-mount coverage through BlobFuse, `bfusemon`,
   strict report validation, exporter translation, and Prometheus OTLP ingestion.
 - BlobFuse's upstream quick stress workload in pull-request gating, with
-  post-baseline lower bounds for create-directory, delete-file, and
-  delete-directory counters.
+  post-baseline nonzero checks for create-directory, delete-file, and
+  delete-directory metric series.
 - Daily and manually dispatched repeated quick-stress coverage with sanitized
   Prometheus and detailed OTLP evidence. The summary distinguishes planned
   workload volume from best-effort observed counter lower bounds.

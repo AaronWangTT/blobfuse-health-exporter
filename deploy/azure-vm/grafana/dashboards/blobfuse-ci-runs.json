@@ -311,6 +311,7 @@
         "y": 5
       },
       "id": 5,
+      "maxDataPoints": 43200,
       "options": {
         "legend": {
           "calcs": [
@@ -330,7 +331,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"azure_blobfuse_fs_operations.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
+          "expr": "max_over_time({__name__=~\"azure_blobfuse_fs_operations.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{azure_blobfuse_operation_name}}",
           "range": true,
           "refId": "A"
@@ -400,6 +401,7 @@
         "y": 5
       },
       "id": 6,
+      "maxDataPoints": 43200,
       "options": {
         "legend": {
           "calcs": [
@@ -419,7 +421,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"azure_blobfuse_storage_io.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
+          "expr": "max_over_time({__name__=~\"azure_blobfuse_storage_io.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{azure_blobfuse_io_direction}}",
           "range": true,
           "refId": "A"
@@ -489,6 +491,7 @@
         "y": 14
       },
       "id": 7,
+      "maxDataPoints": 43200,
       "options": {
         "legend": {
           "calcs": [
@@ -508,7 +511,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"process_memory_virtual.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
+          "expr": "max_over_time({__name__=~\"process_memory_virtual.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{service_name}} pid={{process_pid}}",
           "range": true,
           "refId": "A"
@@ -577,6 +580,7 @@
         "y": 14
       },
       "id": 8,
+      "maxDataPoints": 43200,
       "options": {
         "legend": {
           "calcs": [
@@ -596,7 +600,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
+          "expr": "max_over_time({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{__name__}} {{azure_blobfuse_component_name}}",
           "range": true,
           "refId": "A"
@@ -665,6 +669,7 @@
         "y": 23
       },
       "id": 9,
+      "maxDataPoints": 43200,
       "options": {
         "legend": {
           "calcs": [
@@ -684,7 +689,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
+          "expr": "max_over_time({__name__=~\"blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{__name__}}",
           "range": true,
           "refId": "A"
@@ -767,6 +772,7 @@
         "y": 33
       },
       "id": 11,
+      "maxDataPoints": 43200,
       "options": {
         "legend": {
           "calcs": [
@@ -788,7 +794,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"${metric:regex}\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
+          "expr": "max_over_time({__name__=~\"${metric:regex}\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{service_name}} {{service_instance_id}}",
           "range": true,
           "refId": "A"
@@ -869,6 +875,6 @@
   "timezone": "browser",
   "title": "Blobfuse CI Run Metrics",
   "uid": "blobfuse-ci-runs",
-  "version": 4,
+  "version": 6,
   "weekStart": ""
 }

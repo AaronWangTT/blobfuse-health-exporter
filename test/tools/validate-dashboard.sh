@@ -47,8 +47,10 @@ if len(top_level_panels) != 21 or not all(
     raise SystemExit("dashboard must contain 21 top-level panels with numeric IDs")
 if len(panel_ids) != len(set(panel_ids)):
     raise SystemExit("dashboard panel IDs must be unique")
-if dashboard.get("version", 0) < 9:
-    raise SystemExit("dashboard version does not include completed-run queries")
+if dashboard.get("version", 0) < 10:
+    raise SystemExit("dashboard version does not include metric-centric queries")
+if dashboard.get("title") != "Blobfuse CI Telemetry":
+    raise SystemExit("dashboard title must not make CI run the primary dimension")
 
 for panel in panels:
     position = panel.get("gridPos", {})
@@ -89,6 +91,8 @@ if not run_id.get("includeAll") or run_id.get("allValue") != ".+":
     raise SystemExit("run_id must default to an all-runs regex")
 if run_id.get("current", {}).get("value") != "$__all":
     raise SystemExit("run_id must select all runs by default")
+if run_id.get("label") != "Run filter (optional)":
+    raise SystemExit("run_id must be presented as an optional drill-down filter")
 metric_query = variables.get("metric", {}).get("query", {}).get("query", "")
 metric = variables.get("metric", {})
 if not metric.get("includeAll") or metric.get("allValue") != ".+":
@@ -109,18 +113,53 @@ if len(targets) != 18:
 
 panels_by_title = {panel.get("title"): panel for panel in panels}
 expected_metric_panels = {
-    "Cache disk usage": ("azure_blobfuse_cache_usage_bytes", "bytes", ()),
-    "Cache utilization": ("azure_blobfuse_cache_utilization_ratio", "percentunit", ()),
-    "Open file handles": ("azure_blobfuse_file_open", "short", ("{{azure_blobfuse_component_name}}",)),
-    "Cache file downloads": ("azure_blobfuse_cache_file_downloads_total", "short", ()),
-    "Cache hits": ("azure_blobfuse_cache_hits_total", "short", ()),
-    "Source records processed": ("blobfuse_health_exporter_source_records_total", "short", ("{{outcome}}",)),
-    "Source rotations": ("blobfuse_health_exporter_source_rotations_total", "short", ()),
-    "Source discontinuities": ("blobfuse_health_exporter_source_discontinuities_total", "short", ("{{reason}}",)),
-    "Source counter resets": ("blobfuse_health_exporter_source_counter_resets_total", "short", ("{{source_metric}}",)),
-    "Metric export errors": ("blobfuse_health_exporter_export_errors_total", "short", ("{{error_type}}",)),
+    "Cache disk usage": (
+        "azure_blobfuse_cache_usage_bytes", "bytes", "max(max_over_time(", (),
+    ),
+    "Cache utilization": (
+        "azure_blobfuse_cache_utilization_ratio", "percentunit", "max(max_over_time(", (),
+    ),
+    "Open file handles": (
+        "azure_blobfuse_file_open",
+        "short",
+        "max by (azure_blobfuse_component_name) (max_over_time(",
+        ("{{azure_blobfuse_component_name}}",),
+    ),
+    "Cache file downloads": (
+        "azure_blobfuse_cache_file_downloads_total", "short", "sum(max_over_time(", (),
+    ),
+    "Cache hits": (
+        "azure_blobfuse_cache_hits_total", "short", "sum(max_over_time(", (),
+    ),
+    "Source records processed": (
+        "blobfuse_health_exporter_source_records_total",
+        "short",
+        "sum by (outcome) (max_over_time(",
+        ("{{outcome}}",),
+    ),
+    "Source rotations": (
+        "blobfuse_health_exporter_source_rotations_total", "short", "sum(max_over_time(", (),
+    ),
+    "Source discontinuities": (
+        "blobfuse_health_exporter_source_discontinuities_total",
+        "short",
+        "sum by (reason) (max_over_time(",
+        ("{{reason}}",),
+    ),
+    "Source counter resets": (
+        "blobfuse_health_exporter_source_counter_resets_total",
+        "short",
+        "sum by (source_metric) (max_over_time(",
+        ("{{source_metric}}",),
+    ),
+    "Metric export errors": (
+        "blobfuse_health_exporter_export_errors_total",
+        "short",
+        "sum by (error_type) (max_over_time(",
+        ("{{error_type}}",),
+    ),
 }
-for title, (metric_name, unit, legend_labels) in expected_metric_panels.items():
+for title, (metric_name, unit, aggregation, legend_labels) in expected_metric_panels.items():
     panel = panels_by_title.get(title, {})
     panel_targets = [target for target in panel.get("targets", []) if target.get("expr")]
     if panel.get("type") != "timeseries" or len(panel_targets) != 1:
@@ -128,12 +167,50 @@ for title, (metric_name, unit, legend_labels) in expected_metric_panels.items():
     expression = panel_targets[0]["expr"]
     if expression.count(f'__name__="{metric_name}"') != 2:
         raise SystemExit(f"{title} must select only {metric_name}")
+    if expression.count(aggregation) != 2:
+        raise SystemExit(f"{title} must aggregate away CI run identity")
     if panel.get("fieldConfig", {}).get("defaults", {}).get("unit") != unit:
         raise SystemExit(f"{title} must use Grafana unit {unit}")
     legend = panel_targets[0].get("legendFormat", "")
-    common_legend_labels = ("{{cicd_pipeline_run_id}}", "{{github_run_attempt}}")
-    if any(label not in legend for label in common_legend_labels + legend_labels):
+    if any(label not in legend for label in legend_labels):
         raise SystemExit(f"{title} has an incomplete legend")
+    if any(label in legend for label in ("{{cicd_pipeline_run_id}}", "{{github_run_attempt}}")):
+        raise SystemExit(f"{title} must not expose CI identity in its legend")
+
+expected_overview_panels = {
+    "Filesystem operations": (
+        "sum by (azure_blobfuse_operation_name) (max_over_time(",
+        "{{azure_blobfuse_operation_name}}",
+    ),
+    "Storage I/O": (
+        "sum by (azure_blobfuse_io_direction) (max_over_time(",
+        "{{azure_blobfuse_io_direction}}",
+    ),
+    "Blobfuse virtual memory": (
+        "max by (service_name) (max_over_time(",
+        "{{service_name}}",
+    ),
+}
+for title, (aggregation, legend_label) in expected_overview_panels.items():
+    panel = panels_by_title.get(title, {})
+    panel_targets = [target for target in panel.get("targets", []) if target.get("expr")]
+    if panel.get("type") != "timeseries" or len(panel_targets) != 1:
+        raise SystemExit(f"{title} must be a single-query time series panel")
+    if panel_targets[0]["expr"].count(aggregation) != 2:
+        raise SystemExit(f"{title} must aggregate away CI run identity")
+    legend = panel_targets[0].get("legendFormat", "")
+    if legend_label not in legend or any(
+        label in legend
+        for label in ("{{cicd_pipeline_run_id}}", "{{github_run_attempt}}")
+    ):
+        raise SystemExit(f"{title} must use only metric-semantic legend labels")
+
+raw_explorer = panels_by_title.get("$metric", {})
+raw_targets = [target for target in raw_explorer.get("targets", []) if target.get("expr")]
+if len(raw_targets) != 1 or "{{cicd_pipeline_run_id}}" not in raw_targets[0].get(
+    "legendFormat", ""
+):
+    raise SystemExit("raw metric explorer must retain CI run identity for drill-down")
 
 for row_title in ("Blobfuse cache", "Exporter health", "All metric families"):
     if panels_by_title.get(row_title, {}).get("type") != "row":
@@ -191,7 +268,7 @@ for index, (panel, target) in enumerate(targets):
         )
 
     broad_panel = panel.get("title") in {
-        "Run time series",
+        "Selected metric series",
         "Blobfuse metric series",
         "$metric",
     }
@@ -234,5 +311,5 @@ if stat_count != 4 or chart_count != 14:
         f"dashboard target roles = {stat_count} stat/{chart_count} chart, want 4/14"
     )
 
-print(f"Validated {len(targets)} completed-run dashboard queries")
+print(f"Validated {len(targets)} metric-centric dashboard queries")
 PYTHON

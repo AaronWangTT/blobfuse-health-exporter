@@ -41,14 +41,44 @@ def walk_panels(panels):
 top_level_panels = dashboard.get("panels", [])
 panels = list(walk_panels(top_level_panels))
 panel_ids = [panel.get("id") for panel in panels]
-if len(top_level_panels) != 11 or not all(
+if len(top_level_panels) != 21 or not all(
     isinstance(value, int) for value in panel_ids
 ):
-    raise SystemExit("dashboard must contain 11 top-level panels with numeric IDs")
+    raise SystemExit("dashboard must contain 21 top-level panels with numeric IDs")
 if len(panel_ids) != len(set(panel_ids)):
     raise SystemExit("dashboard panel IDs must be unique")
-if dashboard.get("version", 0) < 8:
+if dashboard.get("version", 0) < 9:
     raise SystemExit("dashboard version does not include completed-run queries")
+
+for panel in panels:
+    position = panel.get("gridPos", {})
+    if not all(isinstance(position.get(key), int) for key in ("x", "y", "w", "h")):
+        raise SystemExit(f"panel {panel.get('title')!r} must have an integer grid position")
+    if (
+        position["x"] < 0
+        or position["y"] < 0
+        or position["w"] <= 0
+        or position["h"] <= 0
+        or position["x"] + position["w"] > 24
+    ):
+        raise SystemExit(f"panel {panel.get('title')!r} has an invalid grid position")
+
+for index, first in enumerate(top_level_panels):
+    first_position = first["gridPos"]
+    for second in top_level_panels[index + 1 :]:
+        second_position = second["gridPos"]
+        horizontal_overlap = max(first_position["x"], second_position["x"]) < min(
+            first_position["x"] + first_position["w"],
+            second_position["x"] + second_position["w"],
+        )
+        vertical_overlap = max(first_position["y"], second_position["y"]) < min(
+            first_position["y"] + first_position["h"],
+            second_position["y"] + second_position["h"],
+        )
+        if horizontal_overlap and vertical_overlap:
+            raise SystemExit(
+                f"panels {first.get('title')!r} and {second.get('title')!r} overlap"
+            )
 
 variables = {
     variable.get("name"): variable
@@ -74,8 +104,40 @@ targets = [
     for target in panel.get("targets", [])
     if target.get("expr")
 ]
-if len(targets) != 10:
-    raise SystemExit(f"dashboard PromQL target count = {len(targets)}, want 10")
+if len(targets) != 18:
+    raise SystemExit(f"dashboard PromQL target count = {len(targets)}, want 18")
+
+panels_by_title = {panel.get("title"): panel for panel in panels}
+expected_metric_panels = {
+    "Cache disk usage": ("azure_blobfuse_cache_usage_bytes", "bytes", ()),
+    "Cache utilization": ("azure_blobfuse_cache_utilization_ratio", "percentunit", ()),
+    "Open file handles": ("azure_blobfuse_file_open", "short", ("{{azure_blobfuse_component_name}}",)),
+    "Cache file downloads": ("azure_blobfuse_cache_file_downloads_total", "short", ()),
+    "Cache hits": ("azure_blobfuse_cache_hits_total", "short", ()),
+    "Source records processed": ("blobfuse_health_exporter_source_records_total", "short", ("{{outcome}}",)),
+    "Source rotations": ("blobfuse_health_exporter_source_rotations_total", "short", ()),
+    "Source discontinuities": ("blobfuse_health_exporter_source_discontinuities_total", "short", ("{{reason}}",)),
+    "Source counter resets": ("blobfuse_health_exporter_source_counter_resets_total", "short", ("{{source_metric}}",)),
+    "Metric export errors": ("blobfuse_health_exporter_export_errors_total", "short", ("{{error_type}}",)),
+}
+for title, (metric_name, unit, legend_labels) in expected_metric_panels.items():
+    panel = panels_by_title.get(title, {})
+    panel_targets = [target for target in panel.get("targets", []) if target.get("expr")]
+    if panel.get("type") != "timeseries" or len(panel_targets) != 1:
+        raise SystemExit(f"{title} must be a single-query time series panel")
+    expression = panel_targets[0]["expr"]
+    if expression.count(f'__name__="{metric_name}"') != 2:
+        raise SystemExit(f"{title} must select only {metric_name}")
+    if panel.get("fieldConfig", {}).get("defaults", {}).get("unit") != unit:
+        raise SystemExit(f"{title} must use Grafana unit {unit}")
+    legend = panel_targets[0].get("legendFormat", "")
+    common_legend_labels = ("{{cicd_pipeline_run_id}}", "{{github_run_attempt}}")
+    if any(label not in legend for label in common_legend_labels + legend_labels):
+        raise SystemExit(f"{title} has an incomplete legend")
+
+for row_title in ("Blobfuse cache", "Exporter health", "All metric families"):
+    if panels_by_title.get(row_title, {}).get("type") != "row":
+        raise SystemExit(f"{row_title} must be a dashboard row")
 
 stat_count = 0
 chart_count = 0
@@ -103,10 +165,11 @@ for index, (panel, target) in enumerate(targets):
             )
         if "offset" in expression:
             raise SystemExit(f"chart target {index} must not read past range ends")
-        expected_range = "[2 * ${__interval_ms}ms:]" if panel.get("title") in {
-            "Cache and open files",
-            "$metric",
-        } else "[2 * ${__interval_ms}ms]"
+        expected_range = (
+            "[2 * ${__interval_ms}ms:]"
+            if panel.get("title") == "$metric"
+            else "[2 * ${__interval_ms}ms]"
+        )
         if "max_over_time" not in expression or range_selectors != [
             expected_range,
             expected_range,
@@ -130,7 +193,6 @@ for index, (panel, target) in enumerate(targets):
     broad_panel = panel.get("title") in {
         "Run time series",
         "Blobfuse metric series",
-        "Cache and open files",
         "$metric",
     }
     metric_name_copy = (
@@ -167,9 +229,9 @@ for index, (panel, target) in enumerate(targets):
             f"target {index} is invalid PromQL: {result.stderr.strip()}"
         )
 
-if stat_count != 4 or chart_count != 6:
+if stat_count != 4 or chart_count != 14:
     raise SystemExit(
-        f"dashboard target roles = {stat_count} stat/{chart_count} chart, want 4/6"
+        f"dashboard target roles = {stat_count} stat/{chart_count} chart, want 4/14"
     )
 
 print(f"Validated {len(targets)} completed-run dashboard queries")

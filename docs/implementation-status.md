@@ -238,9 +238,10 @@ The deployed endpoint passed a real Azurite/FUSE verification on 2026-08-23
 using synthetic run ID `344482`. Remote Prometheus contained 9 series for that
 run, 7 of which matched the Blobfuse, process-memory, or exporter namespaces,
 and the `create_dir` operation series was positive. The authenticated Grafana
-API returned the provisioned 11-panel dashboard with both run selection and the
-repeated all-metrics explorer. Dashboard queries aggregate over each display
-interval, preserving short completed runs across the default 30-day range.
+API returned the provisioned 21-panel dashboard with run selection, separate
+single-unit cache and exporter-health panels, and the repeated all-metrics
+explorer. Dashboard queries aggregate over each display interval, preserving
+short completed runs across the default 30-day range.
 
 ## Known Limits
 

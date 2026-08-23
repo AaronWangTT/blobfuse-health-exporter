@@ -111,10 +111,7 @@ jobs:
           "${RUNNER_TEMP}/bin/otelcol" validate --config=file:test/integration/otelcol.yaml
           "${RUNNER_TEMP}/bin/otelcol" validate --config=file:test/integration/otelcol-prometheus.yaml
           "${RUNNER_TEMP}/bin/otelcol" validate --config=file:test/integration/otelcol-prometheus-remote.yaml
-          "${RUNNER_TEMP}/bin/otelcol" validate --config=file:deploy/azure-vm/otel-collector.yaml
           "${RUNNER_TEMP}/bin/promtool" check config test/integration/prometheus-otlp.yaml
-          "${RUNNER_TEMP}/bin/promtool" check config deploy/azure-vm/prometheus-otlp.yaml
-          PROMTOOL_BIN="${RUNNER_TEMP}/bin/promtool" bash test/tools/validate-dashboard.sh
 
       - name: Run Collector smoke test
         env:

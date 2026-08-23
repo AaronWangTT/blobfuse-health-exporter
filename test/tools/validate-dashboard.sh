@@ -47,7 +47,7 @@ if len(top_level_panels) != 11 or not all(
     raise SystemExit("dashboard must contain 11 top-level panels with numeric IDs")
 if len(panel_ids) != len(set(panel_ids)):
     raise SystemExit("dashboard panel IDs must be unique")
-if dashboard.get("version", 0) < 4:
+if dashboard.get("version", 0) < 6:
     raise SystemExit("dashboard version does not include completed-run queries")
 
 variables = {
@@ -97,8 +97,14 @@ for index, (panel, target) in enumerate(targets):
         chart_count += 1
         if target.get("range") is not True or target.get("instant") is True:
             raise SystemExit(f"chart target {index} must be a range query")
+        if panel.get("maxDataPoints") != 43200:
+            raise SystemExit(
+                f"chart target {index} must use one-minute 30-day resolution"
+            )
+        if "offset" in expression:
+            raise SystemExit(f"chart target {index} must not read past range ends")
         if "max_over_time" not in expression or range_selectors != [
-            "[${__interval_ms}ms]"
+            "[2 * ${__interval_ms}ms]"
         ]:
             raise SystemExit(f"chart target {index} can lose short completed runs")
     else:

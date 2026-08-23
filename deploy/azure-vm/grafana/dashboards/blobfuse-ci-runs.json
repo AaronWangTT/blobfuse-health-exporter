@@ -58,7 +58,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "count(max_over_time({cicd_pipeline_run_id=~\"$run_id\"}[${__range_s}s]))",
+          "expr": "count(max_over_time(label_replace({cicd_pipeline_run_id=~\"$run_id\"}, \"metric_name\", \"$1\", \"__name__\", \"(.*)\")[${__range_s}s:]))",
           "instant": true,
           "legendFormat": "run series",
           "range": false,
@@ -118,7 +118,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "count(max_over_time({__name__=~\"azure_blobfuse_.*|process_memory_virtual.*|blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__range_s}s]))",
+          "expr": "count(max_over_time(label_replace({__name__=~\"azure_blobfuse_.*|process_memory_virtual.*|blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}, \"metric_name\", \"$1\", \"__name__\", \"(.*)\")[${__range_s}s:]))",
           "instant": true,
           "legendFormat": "Blobfuse series",
           "range": false,
@@ -600,8 +600,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
-          "legendFormat": "run {{cicd_pipeline_run_id}} · {{__name__}} {{azure_blobfuse_component_name}}",
+          "expr": "max_over_time(label_replace({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}, \"metric_name\", \"$1\", \"__name__\", \"(.*)\")[2 * ${__interval_ms}ms:]) or (max_over_time(label_replace({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}, \"metric_name\", \"$1\", \"__name__\", \"(.*)\")[2 * ${__interval_ms}ms:] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} · {{metric_name}} {{azure_blobfuse_component_name}}",
           "range": true,
           "refId": "A"
         }
@@ -794,8 +794,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"${metric:regex}\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=~\"${metric:regex}\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
-          "legendFormat": "run {{cicd_pipeline_run_id}} · {{service_name}} {{service_instance_id}}",
+          "expr": "max_over_time(label_replace({__name__=~\"${metric:regex}\",cicd_pipeline_run_id=~\"$run_id\"}, \"metric_name\", \"$1\", \"__name__\", \"(.*)\")[2 * ${__interval_ms}ms:]) or (max_over_time(label_replace({__name__=~\"${metric:regex}\",cicd_pipeline_run_id=~\"$run_id\"}, \"metric_name\", \"$1\", \"__name__\", \"(.*)\")[2 * ${__interval_ms}ms:] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} · {{metric_name}} {{service_name}} {{service_instance_id}}",
           "range": true,
           "refId": "A"
         }
@@ -875,6 +875,6 @@
   "timezone": "browser",
   "title": "Blobfuse CI Run Metrics",
   "uid": "blobfuse-ci-runs",
-  "version": 7,
+  "version": 8,
   "weekStart": ""
 }

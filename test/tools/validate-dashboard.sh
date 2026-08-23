@@ -47,7 +47,7 @@ if len(top_level_panels) != 11 or not all(
     raise SystemExit("dashboard must contain 11 top-level panels with numeric IDs")
 if len(panel_ids) != len(set(panel_ids)):
     raise SystemExit("dashboard panel IDs must be unique")
-if dashboard.get("version", 0) < 7:
+if dashboard.get("version", 0) < 8:
     raise SystemExit("dashboard version does not include completed-run queries")
 
 variables = {
@@ -88,7 +88,7 @@ for index, (panel, target) in enumerate(targets):
         stat_count += 1
         if not target.get("instant") or target.get("range") is not False:
             raise SystemExit(f"summary target {index} must be instant-only")
-        if range_selectors != ["[${__range_s}s]"]:
+        if range_selectors not in (["[${__range_s}s]"], ["[${__range_s}s:]"]):
             raise SystemExit(
                 f"summary target {index} has invalid range selectors: "
                 f"{range_selectors!r}"
@@ -103,9 +103,13 @@ for index, (panel, target) in enumerate(targets):
             )
         if "offset" in expression:
             raise SystemExit(f"chart target {index} must not read past range ends")
+        expected_range = "[2 * ${__interval_ms}ms:]" if panel.get("title") in {
+            "Cache and open files",
+            "$metric",
+        } else "[2 * ${__interval_ms}ms]"
         if "max_over_time" not in expression or range_selectors != [
-            "[2 * ${__interval_ms}ms]",
-            "[2 * ${__interval_ms}ms]",
+            expected_range,
+            expected_range,
         ]:
             raise SystemExit(f"chart target {index} can lose short completed runs")
         if (
@@ -122,6 +126,26 @@ for index, (panel, target) in enumerate(targets):
         raise SystemExit(
             f"target {index} uses unsupported panel type {panel.get('type')!r}"
         )
+
+    broad_panel = panel.get("title") in {
+        "Run time series",
+        "Blobfuse metric series",
+        "Cache and open files",
+        "$metric",
+    }
+    metric_name_copy = (
+        'label_replace(', '"metric_name", "$1", "__name__", "(.*)"'
+    )
+    expected_copies = 2 if panel.get("type") == "timeseries" else 1
+    if broad_panel and (
+        expression.count(metric_name_copy[0]) != expected_copies
+        or expression.count(metric_name_copy[1]) != expected_copies
+    ):
+        raise SystemExit(f"target {index} must preserve metric names")
+    if broad_panel and panel.get("type") == "timeseries" and (
+        "{{metric_name}}" not in target.get("legendFormat", "")
+    ):
+        raise SystemExit(f"chart target {index} must display preserved metric names")
 
     safe_expression = re.sub(
         r"\$\{metric:regex\}",

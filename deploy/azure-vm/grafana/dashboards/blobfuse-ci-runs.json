@@ -486,7 +486,7 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 14
       },
@@ -521,10 +521,24 @@
       "type": "timeseries"
     },
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 12,
+      "panels": [],
+      "title": "Blobfuse cache",
+      "type": "row"
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Current disk space used by the whole-file cache.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -569,15 +583,16 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "bytes"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 9,
         "w": 12,
-        "x": 12,
-        "y": 14
+        "x": 0,
+        "y": 24
       },
       "id": 8,
       "maxDataPoints": 11000,
@@ -600,13 +615,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time(label_replace({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}, \"metric_name\", \"$1\", \"__name__\", \"(.*)\")[2 * ${__interval_ms}ms:]) or (max_over_time(label_replace({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}, \"metric_name\", \"$1\", \"__name__\", \"(.*)\")[2 * ${__interval_ms}ms:] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
-          "legendFormat": "run {{cicd_pipeline_run_id}} · {{metric_name}} {{azure_blobfuse_component_name}}",
+          "expr": "max_over_time({__name__=\"azure_blobfuse_cache_usage_bytes\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"azure_blobfuse_cache_usage_bytes\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Cache and open files",
+      "title": "Cache disk usage",
       "type": "timeseries"
     },
     {
@@ -614,6 +629,256 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Fraction of the configured whole-file cache limit in use. 100% means the configured limit is fully used; values may exceed 100%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 13,
+      "maxDataPoints": 11000,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max_over_time({__name__=\"azure_blobfuse_cache_utilization_ratio\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"azure_blobfuse_cache_utilization_ratio\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Cache utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Current open file handles reported separately by the libfuse and azstorage components.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      },
+      "id": 14,
+      "maxDataPoints": 11000,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max_over_time({__name__=\"azure_blobfuse_file_open\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"azure_blobfuse_file_open\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}} · {{azure_blobfuse_component_name}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Open file handles",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Cumulative files downloaded into the whole-file cache after exporter live cutover. No data means no post-cutover download increment was exported.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      },
+      "id": 15,
+      "maxDataPoints": 11000,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max_over_time({__name__=\"azure_blobfuse_cache_file_downloads_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"azure_blobfuse_cache_file_downloads_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Cache file downloads",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Cumulative open requests served from the whole-file cache after exporter live cutover. No data means no post-cutover hit increment was exported. This is not a block-cache hit ratio.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 16,
+      "maxDataPoints": 11000,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max_over_time({__name__=\"azure_blobfuse_cache_hits_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"azure_blobfuse_cache_hits_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Cache hits",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "id": 17,
+      "panels": [],
+      "title": "Exporter health",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Cumulative source records processed by outcome: accepted, ignored, or invalid.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -658,7 +923,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
@@ -666,7 +932,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 52
       },
       "id": 9,
       "maxDataPoints": 11000,
@@ -689,13 +955,249 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=~\"blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
-          "legendFormat": "run {{cicd_pipeline_run_id}} · {{__name__}}",
+          "expr": "max_over_time({__name__=\"blobfuse_health_exporter_source_records_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"blobfuse_health_exporter_source_records_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}} · {{outcome}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Exporter health",
+      "title": "Source records processed",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Cumulative report generations discovered after exporter live cutover. No data means no source rotation was exported.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "id": 18,
+      "maxDataPoints": 11000,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max_over_time({__name__=\"blobfuse_health_exporter_source_rotations_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"blobfuse_health_exporter_source_rotations_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Source rotations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Cumulative source discontinuities by reason. No data means no discontinuity was exported; any nonzero value deserves investigation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "id": 19,
+      "maxDataPoints": 11000,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max_over_time({__name__=\"blobfuse_health_exporter_source_discontinuities_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"blobfuse_health_exporter_source_discontinuities_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}} · {{reason}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Source discontinuities",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Cumulative Blobfuse source counter decreases by source metric. No data means no reset was exported; any nonzero value deserves investigation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 70
+      },
+      "id": 20,
+      "maxDataPoints": 11000,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max_over_time({__name__=\"blobfuse_health_exporter_source_counter_resets_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"blobfuse_health_exporter_source_counter_resets_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}} · {{source_metric}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Source counter resets",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Cumulative metric export failures by error type. No data means no export error was recorded; any nonzero value deserves investigation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 70
+      },
+      "id": 21,
+      "maxDataPoints": 11000,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "max_over_time({__name__=\"blobfuse_health_exporter_export_errors_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms]) or (max_over_time({__name__=\"blobfuse_health_exporter_export_errors_total\",cicd_pipeline_run_id=~\"$run_id\"}[2 * ${__interval_ms}ms] @ ${__to:date:seconds}) and on () (vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)))",
+          "legendFormat": "run {{cicd_pipeline_run_id}} attempt {{github_run_attempt}} · {{error_type}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Metric export errors",
       "type": "timeseries"
     },
     {
@@ -704,7 +1206,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 79
       },
       "id": 10,
       "panels": [],
@@ -769,7 +1271,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 80
       },
       "id": 11,
       "maxDataPoints": 11000,
@@ -875,6 +1377,6 @@
   "timezone": "browser",
   "title": "Blobfuse CI Run Metrics",
   "uid": "blobfuse-ci-runs",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }

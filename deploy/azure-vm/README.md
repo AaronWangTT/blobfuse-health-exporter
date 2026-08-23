@@ -117,11 +117,13 @@ dual-exporting metrics:
 
 Prometheus promotes them to labels such as `cicd_pipeline_run_id`. Workflow
 summaries link to the provisioned `Blobfuse CI Run Metrics` dashboard with the
-current run selected. The dashboard contains focused operation, I/O, memory,
-cache, and exporter panels plus one repeated panel for every metric family
-present in the run. Grafana uses this dashboard as its home and initially shows
-all retained runs. Its panels use range-window aggregation so short completed
-jobs remain visible after Prometheus's five-minute active-series lookback.
+current run selected. The dashboard contains focused operation, I/O, and memory
+panels; one single-unit panel for each cache and open-file metric; one panel for
+each exporter-health metric family; and one repeated panel for every metric
+family present in the run. Grafana uses this dashboard as its home and initially
+shows all retained runs. Its panels use range-window aggregation so short
+completed jobs remain visible after Prometheus's five-minute active-series
+lookback.
 
 ## Operations
 
@@ -159,4 +161,5 @@ A real local Azurite, FUSE, Blobfuse, `bfusemon`, exporter, and Collector run
 published telemetry under synthetic run ID `344482`. Remote Prometheus returned
 9 matching series, including 7 Blobfuse/exporter series and a positive
 `create_dir` operation. Grafana's authenticated API confirmed the provisioned
-11-panel dashboard, run selector, and repeated all-metrics explorer.
+21-panel dashboard, readable cache and exporter-health sections, run selector,
+and repeated all-metrics explorer.

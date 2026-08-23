@@ -47,7 +47,7 @@ if len(top_level_panels) != 11 or not all(
     raise SystemExit("dashboard must contain 11 top-level panels with numeric IDs")
 if len(panel_ids) != len(set(panel_ids)):
     raise SystemExit("dashboard panel IDs must be unique")
-if dashboard.get("version", 0) < 6:
+if dashboard.get("version", 0) < 7:
     raise SystemExit("dashboard version does not include completed-run queries")
 
 variables = {
@@ -97,16 +97,27 @@ for index, (panel, target) in enumerate(targets):
         chart_count += 1
         if target.get("range") is not True or target.get("instant") is True:
             raise SystemExit(f"chart target {index} must be a range query")
-        if panel.get("maxDataPoints") != 43200:
+        if panel.get("maxDataPoints") != 11000:
             raise SystemExit(
-                f"chart target {index} must use one-minute 30-day resolution"
+                f"chart target {index} must honor Prometheus range resolution"
             )
         if "offset" in expression:
             raise SystemExit(f"chart target {index} must not read past range ends")
         if "max_over_time" not in expression or range_selectors != [
-            "[2 * ${__interval_ms}ms]"
+            "[2 * ${__interval_ms}ms]",
+            "[2 * ${__interval_ms}ms]",
         ]:
             raise SystemExit(f"chart target {index} can lose short completed runs")
+        if (
+            expression.count(" or ") != 1
+            or expression.count("@ ${__to:date:seconds}") != 1
+            or expression.count("and on ()") != 1
+            or expression.count(
+                "vector(time()) > vector(${__to:date:seconds} - ${__interval_ms} / 1000)"
+            )
+            != 1
+        ):
+            raise SystemExit(f"chart target {index} must cover the exact range end")
     else:
         raise SystemExit(
             f"target {index} uses unsupported panel type {panel.get('type')!r}"
@@ -120,6 +131,7 @@ for index, (panel, target) in enumerate(targets):
     safe_expression = safe_expression.replace("$run_id", "123")
     safe_expression = safe_expression.replace("${__range_s}", "2592000")
     safe_expression = safe_expression.replace("${__interval_ms}", "3600000")
+    safe_expression = safe_expression.replace("${__to:date:seconds}", "1700000000")
     result = subprocess.run(
         [promtool, "--experimental", "promql", "format", safe_expression],
         check=False,

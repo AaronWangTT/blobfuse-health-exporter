@@ -95,6 +95,22 @@ totals are both retained in the `blobfuse-daily-stress-metrics` artifact. This
 emphasizes repeatable operation volume without turning Azurite into a multi-hour
 data-throughput benchmark.
 
+## Durable CI Dashboard
+
+Trusted pushes to `main`, scheduled daily runs, and manual runs dispatched from
+`main` can also dual-export their metrics to an authenticated Azure VM endpoint.
+The deployment adds an OpenTelemetry Collector, Prometheus, and Grafana with
+persistent storage behind the VM's existing Caddy service. Metrics are tagged
+with the GitHub run ID, and each workflow summary links to a dashboard filtered
+to that completed run. The dashboard also opens as Grafana's home and retains
+short completed runs across its 30-day view. Pull requests keep using only the
+local Prometheus gate because GitHub does not expose repository secrets to fork
+workflows.
+
+See [Azure VM Metrics Dashboard](deploy/azure-vm/README.md) for deployment,
+security, retention, and operating instructions. Remote delivery is optional;
+the real-mount assertions and sanitized artifact do not depend on it.
+
 ## Architecture
 
 ```mermaid

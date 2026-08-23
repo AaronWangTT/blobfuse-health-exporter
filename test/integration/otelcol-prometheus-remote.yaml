@@ -1,0 +1,51 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: ${env:OTELCOL_HTTP_ENDPOINT}
+
+processors:
+  resource/ci:
+    attributes:
+      - key: cicd.pipeline.run.id
+        value: ${env:CI_RUN_ID}
+        action: upsert
+      - key: cicd.pipeline.name
+        value: ${env:CI_PIPELINE_NAME}
+        action: upsert
+      - key: vcs.ref.head.revision
+        value: ${env:CI_COMMIT_SHA}
+        action: upsert
+      - key: github.run.attempt
+        value: ${env:CI_RUN_ATTEMPT}
+        action: upsert
+
+exporters:
+  debug:
+    verbosity: detailed
+  otlp_http/prometheus:
+    metrics_endpoint: ${env:PROMETHEUS_OTLP_ENDPOINT}
+  otlp_http/azure:
+    metrics_endpoint: ${env:REMOTE_OTLP_METRICS_ENDPOINT}
+    headers:
+      Authorization: ${env:REMOTE_OTLP_AUTHORIZATION}
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 5s
+      max_elapsed_time: 30s
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 1000
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [resource/ci]
+      exporters: [debug, otlp_http/prometheus, otlp_http/azure]

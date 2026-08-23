@@ -238,10 +238,12 @@ The deployed endpoint passed a real Azurite/FUSE verification on 2026-08-23
 using synthetic run ID `344482`. Remote Prometheus contained 9 series for that
 run, 7 of which matched the Blobfuse, process-memory, or exporter namespaces,
 and the `create_dir` operation series was positive. The authenticated Grafana
-API returned the provisioned 21-panel dashboard with run selection, separate
-single-unit cache and exporter-health panels, and the repeated all-metrics
-explorer. Dashboard queries aggregate over each display interval, preserving
-short completed runs across the default 30-day range.
+API returned the provisioned 21-panel dashboard with an optional run filter,
+separate single-unit cache and exporter-health panels, and the repeated raw
+all-metrics explorer. Focused queries aggregate away run and attempt labels by
+metric meaning over each display interval; only the raw explorer retains run
+identity. This preserves short completed runs across the default 30-day range
+without making CI run the primary visual dimension.
 
 ## Known Limits
 
@@ -262,7 +264,6 @@ short completed runs across the default 30-day range.
 
 ## Next Slice
 
-After these changes are reviewed and merged, verify a trusted GitHub Actions run
-appears in the run-filtered Grafana dashboard. Then optionally expand
-compatibility evidence with sanitized captures from additional Linux
-distributions and BlobFuse versions before claiming support for them.
+Optionally expand compatibility evidence with sanitized captures from
+additional Linux distributions and Blobfuse versions before claiming support
+for them.

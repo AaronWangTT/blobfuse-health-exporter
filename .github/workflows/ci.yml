@@ -101,10 +101,20 @@ jobs:
         env:
           OTELCOL_HTTP_ENDPOINT: 127.0.0.1:14318
           PROMETHEUS_OTLP_ENDPOINT: http://127.0.0.1:19090/api/v1/otlp/v1/metrics
+          REMOTE_OTLP_METRICS_ENDPOINT: https://telemetry.example.invalid/v1/metrics
+          REMOTE_OTLP_AUTHORIZATION: Basic ZHVtbXk6ZHVtbXk=
+          CI_RUN_ID: "123"
+          CI_PIPELINE_NAME: CI
+          CI_COMMIT_SHA: 0123456789abcdef0123456789abcdef01234567
+          CI_RUN_ATTEMPT: "1"
         run: |
           "${RUNNER_TEMP}/bin/otelcol" validate --config=file:test/integration/otelcol.yaml
           "${RUNNER_TEMP}/bin/otelcol" validate --config=file:test/integration/otelcol-prometheus.yaml
+          "${RUNNER_TEMP}/bin/otelcol" validate --config=file:test/integration/otelcol-prometheus-remote.yaml
+          "${RUNNER_TEMP}/bin/otelcol" validate --config=file:deploy/azure-vm/otel-collector.yaml
           "${RUNNER_TEMP}/bin/promtool" check config test/integration/prometheus-otlp.yaml
+          "${RUNNER_TEMP}/bin/promtool" check config deploy/azure-vm/prometheus-otlp.yaml
+          PROMTOOL_BIN="${RUNNER_TEMP}/bin/promtool" bash test/tools/validate-dashboard.sh
 
       - name: Run Collector smoke test
         env:
@@ -190,6 +200,12 @@ jobs:
           E2E_STRESS_MODE: quick
           E2E_STRESS_TIMEOUT: 5m
           E2E_EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-e2e-evidence
+          E2E_REMOTE_OTLP_METRICS_ENDPOINT: ${{ github.ref == 'refs/heads/main' && vars.BLOBFUSE_OTLP_METRICS_ENDPOINT || '' }}
+          E2E_REMOTE_OTLP_AUTHORIZATION: ${{ github.ref == 'refs/heads/main' && secrets.BLOBFUSE_OTLP_AUTHORIZATION || '' }}
+          E2E_CI_RUN_ID: ${{ github.run_id }}
+          E2E_CI_PIPELINE_NAME: ${{ github.workflow }}
+          E2E_CI_COMMIT_SHA: ${{ github.sha }}
+          E2E_CI_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: bash test/integration/azurite-mount-e2e.sh
 
       - name: Upload metric evidence
@@ -207,7 +223,9 @@ jobs:
         shell: bash
         env:
           ARTIFACT_URL: ${{ steps.metric_evidence.outputs.artifact-url }}
+          DASHBOARD_URL: ${{ github.ref == 'refs/heads/main' && vars.BLOBFUSE_GRAFANA_DASHBOARD_URL || '' }}
           EVIDENCE_DIR: ${{ runner.temp }}/blobfuse-e2e-evidence
+          RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
           if [[ -f "${EVIDENCE_DIR}/summary.md" ]]; then
@@ -222,4 +240,10 @@ jobs:
           if [[ -n "${ARTIFACT_URL}" ]]; then
             printf '\n[Download sanitized metric evidence](%s)\n' \
               "${ARTIFACT_URL}" >>"${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${DASHBOARD_URL}" ]]; then
+            separator='?'
+            [[ "${DASHBOARD_URL}" == *\?* ]] && separator='&'
+            printf '\n[Open durable metrics dashboard](%s%svar-run_id=%s&from=now-30d&to=now)\n' \
+              "${DASHBOARD_URL}" "${separator}" "${RUN_ID}" >>"${GITHUB_STEP_SUMMARY}"
           fi

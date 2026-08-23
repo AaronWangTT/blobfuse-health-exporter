@@ -21,6 +21,12 @@ cache_size_mb=${E2E_CACHE_SIZE_MB:-64}
 cache_timeout_sec=${E2E_CACHE_TIMEOUT_SEC:-120}
 artifact_name=${E2E_ARTIFACT_NAME:-blobfuse-real-mount-metrics}
 export_interval=${E2E_EXPORT_INTERVAL:-500ms}
+remote_otlp_metrics_endpoint=${E2E_REMOTE_OTLP_METRICS_ENDPOINT:-}
+remote_otlp_authorization=${E2E_REMOTE_OTLP_AUTHORIZATION:-}
+ci_run_id=${E2E_CI_RUN_ID:-}
+ci_pipeline_name=${E2E_CI_PIPELINE_NAME:-}
+ci_commit_sha=${E2E_CI_COMMIT_SHA:-}
+ci_run_attempt=${E2E_CI_RUN_ATTEMPT:-}
 
 azurite_pid=
 prometheus_pid=
@@ -245,6 +251,30 @@ esac
 [[ "$cache_timeout_sec" =~ ^[1-9][0-9]*$ ]] ||
     fail "E2E_CACHE_TIMEOUT_SEC must be a positive integer"
 
+collector_config="$repo_root/test/integration/otelcol-prometheus.yaml"
+remote_export_enabled=false
+if [[ -n "$remote_otlp_metrics_endpoint" || -n "$remote_otlp_authorization" ]]; then
+    [[ -n "$remote_otlp_metrics_endpoint" ]] ||
+        fail "E2E_REMOTE_OTLP_METRICS_ENDPOINT is required when remote authorization is set"
+    [[ "$remote_otlp_metrics_endpoint" == https://*/v1/metrics ]] ||
+        fail "E2E_REMOTE_OTLP_METRICS_ENDPOINT must be an HTTPS /v1/metrics URL"
+    [[ -n "$remote_otlp_authorization" ]] ||
+        fail "E2E_REMOTE_OTLP_AUTHORIZATION is required when remote export is enabled"
+    [[ "$remote_otlp_authorization" != *$'\n'* && "$remote_otlp_authorization" != *$'\r'* ]] ||
+        fail "E2E_REMOTE_OTLP_AUTHORIZATION must not contain line breaks"
+    [[ "$ci_run_id" =~ ^[1-9][0-9]*$ ]] ||
+        fail "E2E_CI_RUN_ID must be a positive integer when remote export is enabled"
+    [[ -n "$ci_pipeline_name" ]] ||
+        fail "E2E_CI_PIPELINE_NAME is required when remote export is enabled"
+    [[ "$ci_commit_sha" =~ ^[0-9a-fA-F]{40}$ ]] ||
+        fail "E2E_CI_COMMIT_SHA must be a 40-character hexadecimal commit when remote export is enabled"
+    [[ "$ci_run_attempt" =~ ^[1-9][0-9]*$ ]] ||
+        fail "E2E_CI_RUN_ATTEMPT must be a positive integer when remote export is enabled"
+
+    collector_config="$repo_root/test/integration/otelcol-prometheus-remote.yaml"
+    remote_export_enabled=true
+fi
+
 minimum_create_dirs=1
 minimum_delete_dirs=1
 minimum_delete_files=1
@@ -439,11 +469,18 @@ prometheus_pid=$!
 wait_for_http "$prometheus_url/-/ready" "$prometheus_pid" 20 ||
     fail "Prometheus did not become ready"
 
-printf 'Starting OpenTelemetry Collector on %s...\n' "$collector_url"
+printf 'Starting OpenTelemetry Collector on %s (remote export: %s)...\n' \
+    "$collector_url" "$remote_export_enabled"
 OTELCOL_HTTP_ENDPOINT="127.0.0.1:$collector_port" \
 PROMETHEUS_OTLP_ENDPOINT="$prometheus_url/api/v1/otlp/v1/metrics" \
+REMOTE_OTLP_METRICS_ENDPOINT="$remote_otlp_metrics_endpoint" \
+REMOTE_OTLP_AUTHORIZATION="$remote_otlp_authorization" \
+CI_RUN_ID="$ci_run_id" \
+CI_PIPELINE_NAME="$ci_pipeline_name" \
+CI_COMMIT_SHA="$ci_commit_sha" \
+CI_RUN_ATTEMPT="$ci_run_attempt" \
     "$otelcol_bin" \
-    --config="file:$repo_root/test/integration/otelcol-prometheus.yaml" \
+    --config="file:$collector_config" \
     >"$log_dir/collector.log" 2>&1 &
 collector_pid=$!
 wait_for_http "$collector_url/v1/metrics" "$collector_pid" 20 ||
@@ -627,7 +664,7 @@ terminate_process "$collector_pid"
 wait "$collector_pid" 2>/dev/null || true
 collector_pid=
 
-for sensitive_value in \
+protected_values=(
     "$private_marker" \
     "$baseline_name" \
     "$work_dir" \
@@ -639,7 +676,12 @@ for sensitive_value in \
     "$azurite_url" \
     "devstoreaccount1" \
     "$azurite_connection_string" \
-    "$azurite_account_key"; do
+    "$azurite_account_key"
+)
+if [[ -n "$remote_otlp_authorization" ]]; then
+    protected_values+=("$remote_otlp_authorization")
+fi
+for sensitive_value in "${protected_values[@]}"; do
     if grep -F --quiet -- "$sensitive_value" "$metrics_file" "$log_dir/collector.log"; then
         fail "sensitive source or configuration data reached metric evidence"
     fi

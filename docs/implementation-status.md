@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 The version 0 implementation and its validation workflows are tracked on
 `main`; this document records the currently verified behavior and environments.
@@ -40,6 +40,16 @@ The version 0 implementation and its validation workflows are tracked on
 - Daily and manually dispatched repeated quick-stress coverage with sanitized
   Prometheus and detailed OTLP evidence. The summary distinguishes planned
   workload volume from best-effort observed counter lower bounds.
+- Optional trusted-run dual export through a local Collector to an authenticated
+  HTTPS endpoint, with bounded GitHub run metadata and local Prometheus retained
+  as the required test oracle.
+- A reproducible existing-VM package for Collector, persistent Prometheus, and
+  a provisioned Grafana dashboard behind an established Caddy service. The
+  dashboard includes every metric family for a selected completed CI run.
+- A live existing-VM deployment on `gwsea` in Azure Southeast Asia, sharing its
+  established Caddy ingress through prefixed routes while keeping Collector,
+  Prometheus, and Grafana off host ports. Temporary deployment SSH access is
+  removed after installation, and the original API remains healthy.
 - Adapter self-metrics under a separate resource, exported through one periodic
   trigger and a serialized target/self transport.
 - BlobFuse 2.5.6 compatibility-matrix coverage for shutdown artifacts and
@@ -142,7 +152,10 @@ go mod verify
 gofmt -l main.go main_test.go internal/*/*.go
 go build .
 otelcol validate --config=file:test/integration/otelcol.yaml
+otelcol validate --config=file:test/integration/otelcol-prometheus-remote.yaml
+otelcol validate --config=file:deploy/azure-vm/otel-collector.yaml
 promtool check config test/integration/prometheus-otlp.yaml
+promtool check config deploy/azure-vm/prometheus-otlp.yaml
 bash test/integration/collector-smoke.sh
 bash test/integration/prometheus-smoke.sh
 E2E_STRESS_MODE=quick BLOBFUSE2_REPO=/path/to/azure-storage-fuse \
@@ -217,7 +230,17 @@ real-mount job uses BlobFuse's upstream quick stress workload. The `Daily
 Blobfuse stress` workflow runs 50 isolated quick-mode iterations daily and on
 manual dispatch, outside the pull-request critical path. The `Performance
 budgets` workflow runs the five-minute idle and load scenarios weekly and on
-manual dispatch.
+manual dispatch. Trusted non-pull-request real-mount and daily runs optionally
+dual-export to the Azure VM backend when its repository variable and secret are
+configured; their summaries link to Grafana by GitHub run ID.
+
+The deployed endpoint passed a real Azurite/FUSE verification on 2026-08-23
+using synthetic run ID `344482`. Remote Prometheus contained 9 series for that
+run, 7 of which matched the Blobfuse, process-memory, or exporter namespaces,
+and the `create_dir` operation series was positive. The authenticated Grafana
+API returned the provisioned 11-panel dashboard with both run selection and the
+repeated all-metrics explorer. Dashboard queries aggregate over each display
+interval, preserving short completed runs across the default 30-day range.
 
 ## Known Limits
 
@@ -225,9 +248,10 @@ manual dispatch.
   bounded `generation_missing` self-metric reason but cannot emit it merely
   because a pathname is absent; doing so would invent a discontinuity. Proven
   truncation, oversize, stale-generation, and unclean-close events are emitted.
-- Docker and Podman remain unavailable in WSL, but they are no longer blockers:
-  the external smoke tests run directly against checksum-verified user-local
-  Collector and Prometheus binaries.
+- Docker and Podman remain unavailable in WSL. Native Collector, Prometheus,
+  dashboard JSON, PromQL, workflow, and shell validation cover the Azure VM
+  package, but Compose startup, Caddy certificate issuance, and remote ingestion
+  were therefore validated on the existing Azure VM rather than in WSL.
 - Versioned source captures currently target BlobFuse 2.5.6 in this Ubuntu WSL
   environment. Parser tests cover all documented `top` memory suffixes, but
   portability is not claimed for additional distributions or BlobFuse versions
@@ -237,5 +261,7 @@ manual dispatch.
 
 ## Next Slice
 
-Optionally expand compatibility evidence with sanitized captures from additional
-Linux distributions and BlobFuse versions before claiming support for them.
+After these changes are reviewed and merged, verify a trusted GitHub Actions run
+appears in the run-filtered Grafana dashboard. Then optionally expand
+compatibility evidence with sanitized captures from additional Linux
+distributions and BlobFuse versions before claiming support for them.

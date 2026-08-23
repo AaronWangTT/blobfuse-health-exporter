@@ -43,13 +43,6 @@ The version 0 implementation and its validation workflows are tracked on
 - Optional trusted-run dual export through a local Collector to an authenticated
   HTTPS endpoint, with bounded GitHub run metadata and local Prometheus retained
   as the required test oracle.
-- A reproducible existing-VM package for Collector, persistent Prometheus, and
-  a provisioned Grafana dashboard behind an established Caddy service. The
-  dashboard includes every metric family for a selected completed CI run.
-- A live existing-VM deployment on `gwsea` in Azure Southeast Asia, sharing its
-  established Caddy ingress through prefixed routes while keeping Collector,
-  Prometheus, and Grafana off host ports. Temporary deployment SSH access is
-  removed after installation, and the original API remains healthy.
 - Adapter self-metrics under a separate resource, exported through one periodic
   trigger and a serialized target/self transport.
 - BlobFuse 2.5.6 compatibility-matrix coverage for shutdown artifacts and
@@ -153,9 +146,7 @@ gofmt -l main.go main_test.go internal/*/*.go
 go build .
 otelcol validate --config=file:test/integration/otelcol.yaml
 otelcol validate --config=file:test/integration/otelcol-prometheus-remote.yaml
-otelcol validate --config=file:deploy/azure-vm/otel-collector.yaml
 promtool check config test/integration/prometheus-otlp.yaml
-promtool check config deploy/azure-vm/prometheus-otlp.yaml
 bash test/integration/collector-smoke.sh
 bash test/integration/prometheus-smoke.sh
 E2E_STRESS_MODE=quick BLOBFUSE2_REPO=/path/to/azure-storage-fuse \
@@ -231,19 +222,10 @@ Blobfuse stress` workflow runs 50 isolated quick-mode iterations daily and on
 manual dispatch, outside the pull-request critical path. The `Performance
 budgets` workflow runs the five-minute idle and load scenarios weekly and on
 manual dispatch. Trusted non-pull-request real-mount and daily runs optionally
-dual-export to the Azure VM backend when its repository variable and secret are
-configured; their summaries link to Grafana by GitHub run ID.
-
-The deployed endpoint passed a real Azurite/FUSE verification on 2026-08-23
-using synthetic run ID `344482`. Remote Prometheus contained 9 series for that
-run, 7 of which matched the Blobfuse, process-memory, or exporter namespaces,
-and the `create_dir` operation series was positive. The authenticated Grafana
-API returned the provisioned 21-panel dashboard with an optional run filter,
-separate single-unit cache and exporter-health panels, and the repeated raw
-all-metrics explorer. Focused queries aggregate away run and attempt labels by
-metric meaning over each display interval; only the raw explorer retains run
-identity. This preserves short completed runs across the default 30-day range
-without making CI run the primary visual dimension.
+dual-export to an operator-managed OTLP endpoint when its repository variable
+and secret are configured. Their summaries can link to an externally hosted
+dashboard by GitHub run ID. Deployment manifests and dashboard definitions are
+intentionally maintained outside this repository.
 
 ## Known Limits
 
@@ -252,9 +234,8 @@ without making CI run the primary visual dimension.
   because a pathname is absent; doing so would invent a discontinuity. Proven
   truncation, oversize, stale-generation, and unclean-close events are emitted.
 - Docker and Podman remain unavailable in WSL. Native Collector, Prometheus,
-  dashboard JSON, PromQL, workflow, and shell validation cover the Azure VM
-  package, but Compose startup, Caddy certificate issuance, and remote ingestion
-  were therefore validated on the existing Azure VM rather than in WSL.
+  workflow, and shell validation cover the repository-owned integration path;
+  remote backend operations remain outside this repository.
 - Versioned source captures currently target BlobFuse 2.5.6 in this Ubuntu WSL
   environment. Parser tests cover all documented `top` memory suffixes, but
   portability is not claimed for additional distributions or BlobFuse versions

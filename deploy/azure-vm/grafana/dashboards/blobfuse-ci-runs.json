@@ -58,7 +58,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "count(max_over_time({cicd_pipeline_run_id=~\"$run_id\"}[$__range]))",
+          "expr": "count(max_over_time({cicd_pipeline_run_id=~\"$run_id\"}[${__range_s}s]))",
           "instant": true,
           "legendFormat": "run series",
           "range": false,
@@ -118,7 +118,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "count(max_over_time({__name__=~\"azure_blobfuse_.*|process_memory_virtual.*|blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[$__range]))",
+          "expr": "count(max_over_time({__name__=~\"azure_blobfuse_.*|process_memory_virtual.*|blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__range_s}s]))",
           "instant": true,
           "legendFormat": "Blobfuse series",
           "range": false,
@@ -179,7 +179,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(max_over_time({__name__=~\"azure_blobfuse_fs_operations.*\",cicd_pipeline_run_id=~\"$run_id\"}[$__range]))",
+          "expr": "sum(max_over_time({__name__=~\"azure_blobfuse_fs_operations.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__range_s}s]))",
           "instant": true,
           "legendFormat": "operations",
           "range": false,
@@ -240,7 +240,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max(max_over_time({__name__=~\"process_memory_virtual.*\",cicd_pipeline_run_id=~\"$run_id\"}[$__range]))",
+          "expr": "max(max_over_time({__name__=~\"process_memory_virtual.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__range_s}s]))",
           "instant": true,
           "legendFormat": "{{service_name}}",
           "range": false,
@@ -330,7 +330,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"azure_blobfuse_fs_operations.*\",cicd_pipeline_run_id=~\"$run_id\"}[$__rate_interval])",
+          "expr": "max_over_time({__name__=~\"azure_blobfuse_fs_operations.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{azure_blobfuse_operation_name}}",
           "range": true,
           "refId": "A"
@@ -419,7 +419,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"azure_blobfuse_storage_io.*\",cicd_pipeline_run_id=~\"$run_id\"}[$__rate_interval])",
+          "expr": "max_over_time({__name__=~\"azure_blobfuse_storage_io.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{azure_blobfuse_io_direction}}",
           "range": true,
           "refId": "A"
@@ -508,7 +508,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"process_memory_virtual.*\",cicd_pipeline_run_id=~\"$run_id\"}[$__rate_interval])",
+          "expr": "max_over_time({__name__=~\"process_memory_virtual.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{service_name}} pid={{process_pid}}",
           "range": true,
           "refId": "A"
@@ -596,7 +596,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}[$__rate_interval])",
+          "expr": "max_over_time({__name__=~\"azure_blobfuse_cache_.*|azure_blobfuse_file_open.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{__name__}} {{azure_blobfuse_component_name}}",
           "range": true,
           "refId": "A"
@@ -684,7 +684,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[$__rate_interval])",
+          "expr": "max_over_time({__name__=~\"blobfuse_health_exporter_.*\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{__name__}}",
           "range": true,
           "refId": "A"
@@ -788,7 +788,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max_over_time({__name__=~\"${metric:regex}\",cicd_pipeline_run_id=~\"$run_id\"}[$__rate_interval])",
+          "expr": "max_over_time({__name__=~\"${metric:regex}\",cicd_pipeline_run_id=~\"$run_id\"}[${__interval_ms}ms])",
           "legendFormat": "run {{cicd_pipeline_run_id}} · {{service_name}} {{service_instance_id}}",
           "range": true,
           "refId": "A"
@@ -809,7 +809,7 @@
   "templating": {
     "list": [
       {
-        "allValue": ".*",
+        "allValue": ".+",
         "current": {
           "text": "All",
           "value": "$__all"
@@ -834,7 +834,7 @@
         "type": "query"
       },
       {
-        "allValue": ".*",
+        "allValue": ".+",
         "current": {
           "text": "All",
           "value": "$__all"
@@ -869,6 +869,6 @@
   "timezone": "browser",
   "title": "Blobfuse CI Run Metrics",
   "uid": "blobfuse-ci-runs",
-  "version": 2,
+  "version": 4,
   "weekStart": ""
 }

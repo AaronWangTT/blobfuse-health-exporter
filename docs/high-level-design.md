@@ -172,5 +172,6 @@ Produce a read-only proof of concept that:
 
 Accepted follow-up directions are tracked in
 [Post-v0 Follow-Up](future-work.md). They cover a declarative metric registry,
-typed procfs metrics, direct secure OTLP configuration, and permanent exporter
-failure classification. They are intentionally not v0 acceptance criteria.
+direct secure OTLP configuration, and permanent exporter failure
+classification. Typed procfs CPU-time and resident-memory metrics have moved
+into the implemented scope.

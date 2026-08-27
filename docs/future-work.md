@@ -82,6 +82,8 @@ proof of concept. No code generation pipeline is required for v0.
 
 ## Review Item 10: Typed Linux Process Metrics
 
+**Status: implemented**
+
 **Accepted direction**
 
 Read typed process data from Linux procfs rather than parsing localized `top`
@@ -96,16 +98,18 @@ PID reuse cannot attach measurements to the wrong process. OpenTelemetry
 semantic conventions in use at implementation time determine the final names
 and instrument kinds.
 
-**v0 boundary**
+**Implementation**
 
-Version 0 exports only the existing `bfusemon` virtual-memory value after
-strict parsing. It continues to omit CPU and physical-memory metrics. Its only
-procfs access reads boot and process-start identity; it does not derive metric
-values from procfs.
+The exporter reads user CPU ticks, system CPU ticks, process start ticks, and
+resident pages from one `/proc/<pid>/stat` snapshot. It emits
+`process.cpu.time` and `process.memory.usage` only when the embedded start ticks
+match the captured source-session identity. Read or identity failures omit the
+typed process points without failing BlobFuse metric collection. The formatted
+`bfusemon` `CPUUsage` value remains unsupported, and utilization remains a
+backend derivation from CPU time.
 
 **Revisit when**
 
-- operators require RSS or CPU metrics;
 - `top` formatting causes compatibility failures on a supported distribution;
 - container PID namespaces make the existing source unreliable; or
 - a compatible monitor replacement already needs procfs access.

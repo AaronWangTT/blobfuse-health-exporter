@@ -140,6 +140,9 @@ for pattern in \
     "azure.blobfuse.storage.io" \
     "azure.blobfuse.io.direction" \
     "azure.blobfuse.file.open" \
+    "process.cpu.time" \
+    "process.cpu.state" \
+    "process.memory.usage" \
     "AggregationTemporality: Cumulative" \
     "IsMonotonic: true" \
     "Value: 37" \
@@ -162,5 +165,5 @@ done
 
 printf '%s\n' "Collector smoke test passed"
 grep -E \
-    'Name: (azure\.blobfuse\.(storage\.io|file\.open)|blobfuse_health_exporter\.source\.records)|AggregationTemporality:|IsMonotonic:|Value: 37|service\.name: Str\(blobfuse-health-exporter\)|Key: (service\.name|service\.instance\.id|process\.pid|process\.creation\.time|azure\.blobfuse\.monitor\.source)' \
+    'Name: (azure\.blobfuse\.(storage\.io|file\.open)|process\.(cpu\.time|memory\.usage)|blobfuse_health_exporter\.source\.records)|AggregationTemporality:|IsMonotonic:|Value: 37|service\.name: Str\(blobfuse-health-exporter\)|Key: (service\.name|service\.instance\.id|process\.pid|process\.creation\.time|process\.cpu\.state|azure\.blobfuse\.monitor\.source)' \
     "$temp_dir/collector.log" | tail -n 24

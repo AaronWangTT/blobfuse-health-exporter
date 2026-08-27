@@ -176,32 +176,67 @@ func (reader processIdentityReader) readBootTime() (int64, error) {
 }
 
 func parseProcessStartTicks(data []byte, expectedPID int) (uint64, error) {
+	stat, err := parseProcessStat(data, expectedPID)
+	if err != nil {
+		return 0, err
+	}
+	return stat.StartTicks, nil
+}
+
+type parsedProcessStat struct {
+	UserTicks     uint64
+	SystemTicks   uint64
+	StartTicks    uint64
+	ResidentPages uint64
+}
+
+func parseProcessStat(data []byte, expectedPID int) (parsedProcessStat, error) {
 	stat := strings.TrimSpace(string(data))
 	openParen := strings.IndexByte(stat, '(')
 	closeParen := strings.LastIndexByte(stat, ')')
 	if openParen < 1 || closeParen <= openParen {
-		return 0, fmt.Errorf("invalid process stat framing")
+		return parsedProcessStat{}, fmt.Errorf("invalid process stat framing")
 	}
 
 	pid, err := strconv.Atoi(strings.TrimSpace(stat[:openParen]))
 	if err != nil || pid != expectedPID {
-		return 0, fmt.Errorf("process stat pid does not match %d", expectedPID)
+		return parsedProcessStat{}, fmt.Errorf("process stat pid does not match %d", expectedPID)
 	}
 
 	fields := strings.Fields(stat[closeParen+1:])
+	const userTimeIndexAfterCommand = 11
+	const systemTimeIndexAfterCommand = 12
 	const startTimeIndexAfterCommand = 19
-	if len(fields) <= startTimeIndexAfterCommand {
-		return 0, fmt.Errorf("process stat is missing start time")
+	const residentPagesIndexAfterCommand = 21
+	if len(fields) <= residentPagesIndexAfterCommand {
+		return parsedProcessStat{}, fmt.Errorf("process stat is missing required fields")
 	}
 	if len(fields[0]) != 1 {
-		return 0, fmt.Errorf("process stat has invalid state")
+		return parsedProcessStat{}, fmt.Errorf("process stat has invalid state")
 	}
 
+	userTicks, err := strconv.ParseUint(fields[userTimeIndexAfterCommand], 10, 64)
+	if err != nil {
+		return parsedProcessStat{}, fmt.Errorf("process stat has invalid user time")
+	}
+	systemTicks, err := strconv.ParseUint(fields[systemTimeIndexAfterCommand], 10, 64)
+	if err != nil {
+		return parsedProcessStat{}, fmt.Errorf("process stat has invalid system time")
+	}
 	startTicks, err := strconv.ParseUint(fields[startTimeIndexAfterCommand], 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("process stat has invalid start time")
+		return parsedProcessStat{}, fmt.Errorf("process stat has invalid start time")
 	}
-	return startTicks, nil
+	residentPages, err := strconv.ParseUint(fields[residentPagesIndexAfterCommand], 10, 64)
+	if err != nil {
+		return parsedProcessStat{}, fmt.Errorf("process stat has invalid resident pages")
+	}
+	return parsedProcessStat{
+		UserTicks:     userTicks,
+		SystemTicks:   systemTicks,
+		StartTicks:    startTicks,
+		ResidentPages: residentPages,
+	}, nil
 }
 
 func processCreationTime(bootTime int64, startTicks, clockTicks uint64) (time.Time, error) {

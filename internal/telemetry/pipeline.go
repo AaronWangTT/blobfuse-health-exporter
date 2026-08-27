@@ -24,6 +24,7 @@ type Pipeline struct {
 	provider     *sdkmetric.MeterProvider
 	selfProvider *sdkmetric.MeterProvider
 	recorder     *metrics.OTelRecorder
+	process      *metrics.ProcessRecorder
 	selfRecorder *metrics.SelfRecorder
 	epoch        time.Time
 	closed       bool
@@ -104,10 +105,18 @@ func NewPipeline(
 		selfProvider.Shutdown(context.Background())
 		return nil, err
 	}
+	processRecorder, err := metrics.NewProcessRecorder(meter, identity)
+	if err != nil {
+		recorder.Close()
+		provider.Shutdown(context.Background())
+		selfProvider.Shutdown(context.Background())
+		return nil, err
+	}
 	if err := processor.AttachObserver(func(processed metrics.ProcessedRecord) {
 		recorder.Record(processed)
 		selfRecorder.Record(processed)
 	}); err != nil {
+		processRecorder.Close()
 		recorder.Close()
 		provider.Shutdown(context.Background())
 		selfProvider.Shutdown(context.Background())
@@ -118,6 +127,7 @@ func NewPipeline(
 		provider:     provider,
 		selfProvider: selfProvider,
 		recorder:     recorder,
+		process:      processRecorder,
 		selfRecorder: selfRecorder,
 		epoch:        epoch,
 	}, nil
@@ -153,6 +163,9 @@ func (pipeline *Pipeline) Shutdown(ctx context.Context) error {
 		shutdownErrors = append(shutdownErrors, err)
 	}
 	if err := pipeline.recorder.Close(); err != nil {
+		shutdownErrors = append(shutdownErrors, err)
+	}
+	if err := pipeline.process.Close(); err != nil {
 		shutdownErrors = append(shutdownErrors, err)
 	}
 	if err := pipeline.provider.Shutdown(ctx); err != nil {

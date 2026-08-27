@@ -134,6 +134,14 @@ open_files_selector='{__name__=~"azure_blobfuse_file_open.*",azure_blobfuse_comp
 wait_for_query "$open_files_selector" 10 "$temp_dir/query.json" ||
     fail "baseline gauges were not ingested"
 
+cpu_time_query='{__name__=~"process_cpu_time_seconds.*",process_cpu_state="user"}'
+wait_for_query "$cpu_time_query" 10 "$temp_dir/query.json" ||
+    fail "typed process CPU time was not ingested"
+
+resident_memory_query='{__name__=~"process_memory_usage_bytes.*"}'
+wait_for_query "$resident_memory_query" 10 "$temp_dir/query.json" ||
+    fail "typed resident memory was not ingested"
+
 cat >>"$report_file" <<'JSON'
   {
     "BlobfuseStats": [
@@ -175,7 +183,7 @@ exporter_pid=
 [[ $exporter_status -eq 0 ]] || fail "exporter exited with status $exporter_status"
 
 series_response=$(curl -fsS --get "$base_url/api/v1/series" \
-    --data-urlencode 'match[]={__name__=~"azure_blobfuse_.*|process_memory_virtual.*"}')
+    --data-urlencode 'match[]={__name__=~"azure_blobfuse_.*|process_cpu_time_seconds.*|process_memory_(usage|virtual).*"}')
 
 for pattern in \
     '"service_name":"blobfuse2"' \

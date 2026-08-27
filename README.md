@@ -141,7 +141,9 @@ Version 0 uses a strict allowlist of aggregate metrics, including:
 - allowlisted filesystem operation counts;
 - open file handles;
 - whole-file cache downloads, hits, usage, and utilization; and
-- monitored BlobFuse virtual memory.
+- monitored BlobFuse virtual memory;
+- identity-bound process resident memory; and
+- cumulative process CPU time split into `user` and `system` states.
 
 BlobFuse-derived counters are best-effort lower bounds because upstream queues
 can discard observations without reporting a dropped count. They are intended
@@ -238,10 +240,11 @@ each correction.
 - [x] Add Collector and Prometheus integration tests.
 - [x] Validate the real BlobFuse, `bfusemon`, Azurite, and OTLP pipeline.
 - [x] Validate resource budgets on a supported Linux environment.
+- [x] Add identity-bound typed procfs CPU-time and resident-memory metrics.
 
-Post-v0 candidates include a declarative metric registry, typed procfs metrics,
-direct secure OTLP configuration, and typed permanent-failure handling. They are
-documented but are not requirements for the first proof of concept.
+Post-v0 candidates include a declarative metric registry, direct secure OTLP
+configuration, and typed permanent-failure handling. They are documented but
+are not requirements for the first proof of concept.
 
 ## Contributing
 

@@ -21,6 +21,7 @@ cache_size_mb=${E2E_CACHE_SIZE_MB:-64}
 cache_timeout_sec=${E2E_CACHE_TIMEOUT_SEC:-120}
 artifact_name=${E2E_ARTIFACT_NAME:-blobfuse-real-mount-metrics}
 export_interval=${E2E_EXPORT_INTERVAL:-500ms}
+metric_probe_name=
 remote_otlp_metrics_endpoint=${E2E_REMOTE_OTLP_METRICS_ENDPOINT:-}
 remote_otlp_authorization=${E2E_REMOTE_OTLP_AUTHORIZATION:-}
 ci_run_id=${E2E_CI_RUN_ID:-}
@@ -391,6 +392,24 @@ run_blobfuse_stress() {
     done
 }
 
+run_metric_probe() {
+    local probe_dir
+    local probe_file
+
+    metric_probe_name="metric-probe-$RANDOM"
+    probe_dir="$mount_dir/$metric_probe_name"
+    probe_file="$probe_dir/file.txt"
+
+    printf '%s\n' 'Running paced filesystem metric probe...'
+    mkdir "$probe_dir"
+    sleep 2
+    printf 'metric probe\n' >"$probe_file"
+    sleep 2
+    rm "$probe_file"
+    sleep 2
+    rmdir "$probe_dir"
+}
+
 [[ -n "$blobfuse_repo" ]] || fail "BLOBFUSE2_REPO is required"
 [[ "$blobfuse_repo" = /* ]] || fail "BLOBFUSE2_REPO must be an absolute path"
 [[ -f "$blobfuse_repo/go.mod" ]] || fail "BLOBFUSE2_REPO does not contain go.mod"
@@ -603,6 +622,7 @@ wait_for_query "$prometheus_url" "$resident_memory_query" 30 ||
     fail "the typed resident-memory metric was not ingested"
 
 run_blobfuse_stress || fail "Blobfuse $stress_mode stress workload failed"
+run_metric_probe
 
 operation_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"create_dir\",process_pid=\"$blobfuse_pid\"} >= $minimum_create_dirs"
 wait_for_query "$prometheus_url" "$operation_query" 60 ||
@@ -675,6 +695,7 @@ collector_pid=
 protected_values=(
     "$private_marker" \
     "$baseline_name" \
+    "$metric_probe_name" \
     "$work_dir" \
     "$mount_dir" \
     "$cache_dir" \

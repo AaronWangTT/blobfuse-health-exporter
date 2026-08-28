@@ -73,7 +73,8 @@ bash test/integration/azurite-mount-e2e.sh
 harness builds into a private temporary directory, mounts BlobFuse in the
 foreground under `umask 077`, and removes its mount, processes, and data on
 completion. By default it runs BlobFuse's upstream quick stress test after the
-exporter reaches live cutover and requires nonzero `CreateDir`, `DeleteFile`,
+exporter reaches live cutover, follows it with a paced operation probe across
+health-monitor poll intervals, and requires nonzero `CreateDir`, `DeleteFile`,
 and `DeleteDir` metric series. Set
 `E2E_STRESS_MODE=full`, `E2E_STRESS_TIMEOUT=120m`, and an appropriately sized
 `E2E_CACHE_SIZE_MB` to run the upstream full workload manually. Set

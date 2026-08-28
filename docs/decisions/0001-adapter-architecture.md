@@ -128,10 +128,11 @@ Reasons:
 The code must define its own source DTOs. Importing
 `github.com/Azure/azure-storage-fuse/v2/internal/...` is prohibited.
 
-Minimal procfs access is required to bind a PID to its process start identity.
-Version 0 does not use procfs to produce process metrics. The complete command
-line, timing, endpoint, size, and resource limits are defined in
-[the version 0 configuration](../configuration.md).
+Procfs access binds a PID to its process start identity and reads typed CPU-time
+and resident-memory values from the same identity-checked stat record. Process
+metric read failures omit those optional observations without stopping source
+processing. The complete command line, timing, endpoint, size, and resource
+limits are defined in [the version 0 configuration](../configuration.md).
 
 ### Source Report Security
 

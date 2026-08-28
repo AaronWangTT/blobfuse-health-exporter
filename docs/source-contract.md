@@ -326,6 +326,13 @@ It extracts `%CPU` and `VIRT` from the output header.
   `bfusemon` appends `k`; otherwise the original suffix is retained.
 - Output parsing depends on the target distribution's `top` format and locale.
 
+The exporter does not translate `CPUUsage`. It independently reads fields 14,
+15, 22, and 24 from `/proc/<pid>/stat` to produce typed CPU-time and resident-
+memory metrics. Field 22 must match the process start ticks captured for this
+source session, so PID reuse cannot attach observations to another process.
+Failure to read these optional process values does not interrupt report-source
+processing.
+
 The initial compatibility suite must include samples from every supported Linux
 distribution before these strings are considered portable.
 

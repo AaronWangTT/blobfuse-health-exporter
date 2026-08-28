@@ -43,6 +43,8 @@ The version 0 implementation and its validation workflows are tracked on
 - Optional trusted-run dual export through a local Collector to an authenticated
   HTTPS endpoint, with bounded GitHub run metadata and local Prometheus retained
   as the required test oracle.
+- Identity-bound typed process CPU-time and resident-memory metrics read from
+  one procfs stat snapshot, with PID-reuse and process-exit degradation tests.
 - Adapter self-metrics under a separate resource, exported through one periodic
   trigger and a serialized target/self transport.
 - BlobFuse 2.5.6 compatibility-matrix coverage for shutdown artifacts and

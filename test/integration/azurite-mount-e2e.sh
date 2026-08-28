@@ -21,6 +21,7 @@ cache_size_mb=${E2E_CACHE_SIZE_MB:-64}
 cache_timeout_sec=${E2E_CACHE_TIMEOUT_SEC:-120}
 artifact_name=${E2E_ARTIFACT_NAME:-blobfuse-real-mount-metrics}
 export_interval=${E2E_EXPORT_INTERVAL:-500ms}
+metric_probe_name=
 remote_otlp_metrics_endpoint=${E2E_REMOTE_OTLP_METRICS_ENDPOINT:-}
 remote_otlp_authorization=${E2E_REMOTE_OTLP_AUTHORIZATION:-}
 ci_run_id=${E2E_CI_RUN_ID:-}
@@ -391,6 +392,24 @@ run_blobfuse_stress() {
     done
 }
 
+run_metric_probe() {
+    local probe_dir
+    local probe_file
+
+    metric_probe_name="metric-probe-$RANDOM"
+    probe_dir="$mount_dir/$metric_probe_name"
+    probe_file="$probe_dir/file.txt"
+
+    printf '%s\n' 'Running paced filesystem metric probe...'
+    mkdir "$probe_dir"
+    sleep 2
+    printf 'metric probe\n' >"$probe_file"
+    sleep 2
+    rm "$probe_file"
+    sleep 2
+    rmdir "$probe_dir"
+}
+
 [[ -n "$blobfuse_repo" ]] || fail "BLOBFUSE2_REPO is required"
 [[ "$blobfuse_repo" = /* ]] || fail "BLOBFUSE2_REPO must be an absolute path"
 [[ -f "$blobfuse_repo/go.mod" ]] || fail "BLOBFUSE2_REPO does not contain go.mod"
@@ -594,7 +613,16 @@ memory_query="{__name__=~\"process_memory_virtual.*\",process_pid=\"$blobfuse_pi
 wait_for_query "$prometheus_url" "$memory_query" 30 ||
     fail "the real bfusemon memory metric was not ingested"
 
+cpu_time_query="{__name__=~\"process_cpu_time_seconds.*\",process_cpu_state=\"user\",process_pid=\"$blobfuse_pid\"}"
+wait_for_query "$prometheus_url" "$cpu_time_query" 30 ||
+    fail "the typed process CPU time metric was not ingested"
+
+resident_memory_query="{__name__=~\"process_memory_usage_bytes.*\",process_pid=\"$blobfuse_pid\"}"
+wait_for_query "$prometheus_url" "$resident_memory_query" 30 ||
+    fail "the typed resident-memory metric was not ingested"
+
 run_blobfuse_stress || fail "Blobfuse $stress_mode stress workload failed"
+run_metric_probe
 
 operation_query="{__name__=~\"azure_blobfuse_fs_operations.*\",azure_blobfuse_operation_name=\"create_dir\",process_pid=\"$blobfuse_pid\"} >= $minimum_create_dirs"
 wait_for_query "$prometheus_url" "$operation_query" 60 ||
@@ -623,7 +651,7 @@ for pattern in \
 done
 
 series_response=$(curl --fail --silent --show-error --get "$prometheus_url/api/v1/series" \
-    --data-urlencode 'match[]={__name__=~"azure_blobfuse_.*|process_memory_virtual.*"}')
+    --data-urlencode 'match[]={__name__=~"azure_blobfuse_.*|process_cpu_time_seconds.*|process_memory_(usage|virtual).*"}')
 if grep -F --quiet -- "$private_marker" <<<"$series_response" ||
     grep -F --quiet -- "$private_marker" \
         "$log_dir/exporter.log" \
@@ -654,7 +682,7 @@ exporter_pid=
 wait_for_file_pattern "$log_dir/collector.log" "azure.blobfuse.fs.operations" "$collector_pid" 10 ||
     fail "Collector debug output is missing the CreateDir metric"
 
-all_metrics_query='{__name__=~"azure_blobfuse_.*|process_memory_virtual.*|blobfuse_health_exporter_.*"}'
+all_metrics_query='{__name__=~"azure_blobfuse_.*|process_cpu_time_seconds.*|process_memory_(usage|virtual).*|blobfuse_health_exporter_.*"}'
 curl --fail --silent --show-error --get "$prometheus_url/api/v1/query" \
     --data-urlencode "query=$all_metrics_query" >"$metrics_file"
 grep -F --quiet '"result":[{' "$metrics_file" ||
@@ -667,6 +695,7 @@ collector_pid=
 protected_values=(
     "$private_marker" \
     "$baseline_name" \
+    "$metric_probe_name" \
     "$work_dir" \
     "$mount_dir" \
     "$cache_dir" \
@@ -743,6 +772,8 @@ with open(summary_path, "w", encoding="utf-8") as summary:
     summary.write("| --- | --- | --- |\n")
     summary.write(f"| Strict report permissions | Pass | Report mode `{markdown(report_mode)}` |\n")
     summary.write("| Real `bfusemon` memory metric | Pass | Ingested by Prometheus |\n")
+    summary.write("| Typed process CPU time | Pass | Identity-bound procfs series ingested |\n")
+    summary.write("| Typed resident memory | Pass | Identity-bound procfs series ingested |\n")
     summary.write(
         f"| Blobfuse stress workload | Pass | Mode `{markdown(stress_mode)}`, "
         f"iterations `{markdown(stress_iterations)}` |\n"
